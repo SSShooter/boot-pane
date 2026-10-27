@@ -75,6 +75,19 @@ func (c *ConfigService) SetStar(projectID, taskID string, starred bool) error {
 	return c.store.SetStar(projectID, taskID, starred)
 }
 
+// GetSettings 返回本机偏好（自动打开日志这类开关）。
+//
+// 偏好落在 workspace.json 顶层，和星标一样属于「这台机器的习惯」，
+// 不跟着 .bootpane.json 走。
+func (c *ConfigService) GetSettings() config.Settings {
+	return c.store.Settings()
+}
+
+// SetAutoOpenLogOnStart 切换「启动任务后自动打开日志」。
+func (c *ConfigService) SetAutoOpenLogOnStart(enabled bool) error {
+	return c.store.SetAutoOpenLogOnStart(enabled)
+}
+
 // BuildConfigPrompt 生成一段可以贴给任意大模型的 prompt，用来产出启动配置。
 func (c *ConfigService) BuildConfigPrompt(id string) (string, error) {
 	p, err := c.store.Get(id)

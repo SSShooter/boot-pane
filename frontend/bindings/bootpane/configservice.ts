@@ -53,6 +53,16 @@ export function GetProject(id: string): $CancellablePromise<config$0.ResolvedPro
 }
 
 /**
+ * GetSettings 返回本机偏好（自动打开日志这类开关）。
+ * 
+ * 偏好落在 workspace.json 顶层，和星标一样属于「这台机器的习惯」，
+ * 不跟着 .bootpane.json 走。
+ */
+export function GetSettings(): $CancellablePromise<config$0.Settings> {
+    return $Call.ByID(2761787168);
+}
+
+/**
  * ImportTasks 解析用户粘贴回来的配置，校验通过后才写入全局注册表。
  * 
  * 大模型会编造不存在的命令，所以这一步不能直接落盘：先按项目真实路径跑一遍
@@ -99,6 +109,13 @@ export function RemoveProject(id: string): $CancellablePromise<void> {
  */
 export function SaveConfigJSON(id: string, raw: string): $CancellablePromise<config$0.ImportResult> {
     return $Call.ByID(1159892090, id, raw);
+}
+
+/**
+ * SetAutoOpenLogOnStart 切换「启动任务后自动打开日志」。
+ */
+export function SetAutoOpenLogOnStart(enabled: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3188749731, enabled);
 }
 
 /**

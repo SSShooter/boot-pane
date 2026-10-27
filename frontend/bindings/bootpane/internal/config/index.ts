@@ -6,6 +6,7 @@ export type {
     Issue,
     Pipeline,
     ResolvedProject,
+    Settings,
     Task,
     WaitFor
 } from "./models.js";

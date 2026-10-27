@@ -40,6 +40,19 @@ const PORT_POLL_INTERVAL = 5_000;
  */
 export const STARRED_VIEW = "__starred__";
 
+/**
+ * 设置页的伪项目 id。
+ *
+ * 和 STARRED_VIEW 同理：设置页是主区的一整页，不是弹窗，
+ * 所以也得借 selectedId 表达「当前主区显示什么」。
+ */
+export const SETTINGS_VIEW = "__settings__";
+
+/** 不对应真实项目的视图 id。 */
+function isPseudoView(id: string): boolean {
+  return id === STARRED_VIEW || id === SETTINGS_VIEW;
+}
+
 class AppState {
   projects = $state<ResolvedProject[]>([]);
   runtimes = $state<Record<string, Runtime>>({});
@@ -66,6 +79,14 @@ class AppState {
   selectedId = $state("");
   loading = $state(true);
 
+  /**
+   * 本机偏好，镜像 workspace.json 顶层的那份数据。
+   *
+   * 只有「这台机器上的习惯」放这里（星标、自动打开日志），
+   * 项目级的配置永远走 workspace.json 里的项目条目或仓库内 .bootpane.json。
+   */
+  settings = $state({ autoOpenLogOnStart: false });
+
   /** 当前打开「生成配置」弹窗的项目 id，null 表示弹窗关闭。 */
   generatorProjectId = $state<string | null>(null);
 
@@ -83,6 +104,9 @@ class AppState {
 
   /** 当前是不是停在星标聚合视图。 */
   showStarred = $derived(this.selectedId === STARRED_VIEW);
+
+  /** 当前是不是停在设置页。 */
+  showSettings = $derived(this.selectedId === SETTINGS_VIEW);
 
   /**
    * 星标任务的跨项目扁平列表。
@@ -119,14 +143,12 @@ class AppState {
     try {
       const list = await api.listProjects();
       this.projects = list ?? [];
-      // 星标视图不是真实项目，不能被「选中项不存在」的兜底逻辑踢回第一个项目。
-      if (
-        this.selectedId !== STARRED_VIEW &&
-        !this.projects.some((p) => p.id === this.selectedId)
-      ) {
+      // 伪视图（星标 / 设置）不是真实项目，不能被「选中项不存在」的兜底逻辑
+      // 踢回第一个项目。
+      if (!isPseudoView(this.selectedId) && !this.projects.some((p) => p.id === this.selectedId)) {
         this.selectedId = this.projects[0]?.id ?? "";
       }
-      await Promise.all([this.refreshRuntimes(), this.refreshPorts()]);
+      await Promise.all([this.refreshRuntimes(), this.refreshPorts(), this.loadSettings()]);
     } catch (e) {
       this.notify(describeError(e), true);
     } finally {
@@ -180,6 +202,16 @@ class AppState {
       for (const off of offs) off();
       for (const t of timers) clearInterval(t);
     };
+  }
+
+  /** 拉一次本机偏好。失败不打扰用户，停在默认值即可。 */
+  async loadSettings(): Promise<void> {
+    try {
+      const st = await api.getSettings();
+      this.settings = { autoOpenLogOnStart: !!st?.autoOpenLogOnStart };
+    } catch {
+      // 读不到一条偏好不值得弹错误，用默认值继续。
+    }
   }
 
   /** 拉一次全量运行状态，用于首次加载和兜底对账。 */
@@ -267,6 +299,31 @@ class AppState {
     this.selectedId = id;
   }
 
+  /** 打开设置页。和项目共用 selectedId，靠伪 id 区分。 */
+  openSettings(): void {
+    this.selectedId = SETTINGS_VIEW;
+  }
+
+  /**
+   * 切换「启动任务后自动打开日志」。
+   *
+   * 先本地生效再回写：开关等一次 IPC 往返才动，点起来像没反应。
+   * 写盘失败就回滚并提示——偏好没存住这件事必须让用户知道，
+   * 否则下次启动行为不一样他会以为是自己记错了。
+   */
+  async setAutoOpenLogOnStart(enabled: boolean): Promise<void> {
+    const prev = this.settings.autoOpenLogOnStart;
+    if (prev === enabled) return;
+
+    this.settings = { autoOpenLogOnStart: enabled };
+    try {
+      await api.setAutoOpenLogOnStart(enabled);
+    } catch (e) {
+      this.settings = { autoOpenLogOnStart: prev };
+      this.notify(describeError(e), true);
+    }
+  }
+
   runtimeOf(projectId: string, taskId: string): Runtime | null {
     return this.runtimes[taskKey(projectId, taskId)] ?? null;
   }
@@ -319,7 +376,7 @@ class AppState {
 
     let failed = 0;
     for (const { project, task } of targets) {
-      if (!(await this.startTask(project.id, task.id))) failed++;
+      if (!(await this.startTask(project.id, task.id, false))) failed++;
     }
     await this.refreshPorts();
 
@@ -442,8 +499,14 @@ class AppState {
     this.editorProjectId = null;
   }
 
-  /** 启动任务，返回是否成功（批量启动要据此统计失败数）。 */
-  async startTask(projectId: string, taskId: string): Promise<boolean> {
+  /**
+   * 启动任务，返回是否成功（批量启动要据此统计失败数）。
+   *
+   * autoLog 控制「启动后自动展开日志」这条偏好。批量启动传 false：
+   * 连着弹几个任务的面板只会让它来回跳，用户要的是「都起来了吗」，
+   * 不是逐个看日志。
+   */
+  async startTask(projectId: string, taskId: string, autoLog = true): Promise<boolean> {
     const key = taskKey(projectId, taskId);
     // 重新启动意味着新一轮输出，旧的留着只会让人误判。
     this.logs[key] = "";
@@ -452,6 +515,11 @@ class AppState {
     try {
       await api.startTask(projectId, taskId);
       await this.refreshRuntimes();
+
+      // 已经开着别的任务的面板时不抢占：用户正看着日志，被切走比不弹更烦。
+      if (autoLog && this.settings.autoOpenLogOnStart && !this.activeLog) {
+        void this.openLog(projectId, taskId);
+      }
       return true;
     } catch (e) {
       this.notify(describeError(e), true);

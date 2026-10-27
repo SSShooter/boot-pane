@@ -123,6 +123,11 @@
 
   <div class="rail-foot">
     <span>{app.projects.length} 个项目</span>
-    <button class="link-btn" onclick={() => app.openConfigDir()}>配置目录</button>
+    <span class="foot-links">
+      <button class="link-btn" onclick={() => app.openConfigDir()}>配置目录</button>
+      <button class="link-btn" class:is-on={app.showSettings} onclick={() => app.openSettings()}>
+        设置
+      </button>
+    </span>
   </div>
 </aside>

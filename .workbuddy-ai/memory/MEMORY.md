@@ -19,7 +19,11 @@ Wails3 桌面应用，做「项目启动器」：列出项目，每个项目挂�
   前端拿不到细节。业务错误放返回值里（参考 `ImportResult`），error 只用于系统级失败。
 - **个人偏好类状态存 workspace.json 顶层，不要塞进 `Task`/`Project` 定义**。
   任务定义要能跟仓库走（`.bootpane.json` 是团队共享的），星标这类本机习惯一旦混进去，
-  切到项目内配置就无处落地。参考 `Workspace.Stars` + `ResolvedProject.StarredTaskIDs`。
+  切到项目内配置就无处落地。参考 `Workspace.Stars` + `ResolvedProject.StarredTaskIDs`，
+  以及 `Workspace.Settings`（自动打开日志等开关）。
+- **主区整页视图（星标 / 设置）靠 `selectedId` 的伪 id 表达**，不是路由。
+  新增整页视图要同时改 `isPseudoView()`，否则 `load()` 里「选中项不存在就回退第一个项目」
+  会把用户从那个页面踢走。
 - **配置写入只留一个入口**：`ConfigService.SaveConfigJSON(id, raw)`。不要加
   `UpsertTask` / `DeleteTask` 这种细粒度方法——那是第二套写入路径，校验逻辑要写两遍，
   迟早出现「单条删除绕过校验」。加/改/删都靠前端改 JSON 再整份提交。
