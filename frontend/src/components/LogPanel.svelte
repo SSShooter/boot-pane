@@ -20,7 +20,7 @@
     };
   });
 
-  const text = $derived(app.activeLogText);
+  const runs = $derived(app.activeLogRuns);
   const runState = $derived(target?.runtime?.state ?? "idle");
   const live = $derived(runState === "running" || runState === "starting");
   /** 端口有人在听，但不是 bootpane 起的进程。 */
@@ -37,7 +37,7 @@
   // 用 tick() 等 DOM 更新完再滚，否则拿到的还是旧的 scrollHeight。
   $effect(() => {
     if (!stickToBottom) return;
-    if (!text) return;
+    if (runs.length === 0) return;
     void tick().then(() => {
       if (bodyEl) bodyEl.scrollTop = bodyEl.scrollHeight;
     });
@@ -79,8 +79,8 @@
     </header>
 
     <div class="log-body" bind:this={bodyEl} onscroll={onScroll}>
-      {#if text}
-        <pre>{text}</pre>
+      {#if runs.length > 0}
+        <pre>{#each runs as run}{#if run.cls || run.style}<span class={run.cls} style={run.style}>{run.text}</span>{:else}{run.text}{/if}{/each}</pre>
       {:else}
         <div class="log-empty">
           {live ? "等待输出…" : "还没有日志。点启动按钮后这里会显示实时输出。"}
