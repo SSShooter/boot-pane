@@ -4,6 +4,7 @@
   import ProjectPanel from "./components/ProjectPanel.svelte";
   import StarredPanel from "./components/StarredPanel.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
+  import ConfigEditor from "./components/ConfigEditor.svelte";
   import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
 
@@ -44,6 +45,10 @@
 
 {#if app.generatorProject}
   <GenerateDialog project={app.generatorProject} onclose={() => app.closeGenerator()} />
+{/if}
+
+{#if app.editorProject}
+  <ConfigEditor project={app.editorProject} onclose={() => app.closeEditor()} />
 {/if}
 
 <LogPanel />

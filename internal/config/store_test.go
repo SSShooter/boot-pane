@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -255,6 +256,208 @@ func TestParseProjectFileRejectsEmpty(t *testing.T) {
 	}
 	if _, err := ParseProjectFile(`{"version":1,"tasks":[]}`); err == nil {
 		t.Error("空任务列表应当报错")
+	}
+}
+
+// 编辑框和导入框的区别就在这里：把启动项全删光再保存是正常操作，不能拦。
+func TestParseEditableConfigAllowsEmpty(t *testing.T) {
+	pf, err := ParseEditableConfig(`{"version":1,"tasks":[]}`)
+	if err != nil {
+		t.Fatalf("编辑框应允许空任务列表: %v", err)
+	}
+	if len(pf.Tasks) != 0 {
+		t.Errorf("应解析出 0 个任务，得到 %d", len(pf.Tasks))
+	}
+}
+
+// 编辑框里看到的就是「当前真正生效的配置」，两种来源都要能拿到。
+func TestConfigSnapshotGlobal(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:    "p1",
+		Name:  "我的项目",
+		Path:  t.TempDir(),
+		Tags:  []string{"go"},
+		Tasks: []Task{{ID: "api", Label: "启动 API", Command: "go run ./cmd/api"}},
+	}}
+
+	raw, err := s.ConfigSnapshot("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pf ProjectFile
+	if err := json.Unmarshal([]byte(raw), &pf); err != nil {
+		t.Fatalf("快照应当是合法 JSON: %v\n%s", err, raw)
+	}
+	if pf.Project.Name != "我的项目" {
+		t.Errorf("应带上项目名，得到 %q", pf.Project.Name)
+	}
+	if len(pf.Tasks) != 1 || pf.Tasks[0].ID != "api" {
+		t.Errorf("应带上注册表里的任务，得到 %+v", pf.Tasks)
+	}
+}
+
+// 空任务列表要序列化成 []，不能是 null——编辑框里看到 null 会让人以为配置坏了。
+func TestConfigSnapshotEmptyTasksIsArray(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Path: t.TempDir()}}
+
+	raw, err := s.ConfigSnapshot("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(raw, `"tasks": []`) {
+		t.Errorf("空任务应输出 []，得到：\n%s", raw)
+	}
+}
+
+// 项目内配置模式返回仓库文件原文，不能先反序列化再序列化把用户的排版搅乱。
+func TestConfigSnapshotRepoReturnsRaw(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, repoBody)
+
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Path: repo, UseRepoConfig: true}}
+
+	raw, err := s.ConfigSnapshot("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw != repoBody {
+		t.Errorf("应原样返回仓库文件内容，得到：\n%s", raw)
+	}
+}
+
+// 切到项目内配置但仓库里还没建文件时，也要能给出一个可编辑的骨架。
+func TestConfigSnapshotRepoWithoutFile(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Name: "空项目", Path: t.TempDir(), UseRepoConfig: true}}
+
+	raw, err := s.ConfigSnapshot("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pf ProjectFile
+	if err := json.Unmarshal([]byte(raw), &pf); err != nil {
+		t.Fatalf("骨架应当是合法 JSON: %v\n%s", err, raw)
+	}
+	if pf.Version != 1 {
+		t.Errorf("骨架应带 version 1，得到 %d", pf.Version)
+	}
+}
+
+// 全局模式保存：任务写回注册表并落盘。
+func TestApplyConfigGlobalPersists(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:    "p1",
+		Name:  "旧名字",
+		Path:  t.TempDir(),
+		Tasks: []Task{{ID: "old", Label: "旧任务", Command: "echo old"}},
+	}}
+
+	pf := ProjectFile{
+		Version: 1,
+		Project: Meta{Name: "新名字", Tags: []string{"go"}},
+		Tasks:   []Task{{ID: "web", Label: "前端", Command: "pnpm dev"}},
+	}
+	if err := s.ApplyConfig("p1", pf, true); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded := &Store{dir: s.dir}
+	if err := reloaded.load(); err != nil {
+		t.Fatal(err)
+	}
+	got := reloaded.ws.Projects[0]
+	if len(got.Tasks) != 1 || got.Tasks[0].ID != "web" {
+		t.Fatalf("任务没有写回注册表，得到 %+v", got.Tasks)
+	}
+	if got.Name != "新名字" {
+		t.Errorf("syncMeta 为 true 时应同步项目名，得到 %q", got.Name)
+	}
+}
+
+// 导入路径传 syncMeta=false：大模型编的名字不能覆盖用户认得的名字。
+func TestApplyConfigImportKeepsName(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:   "p1",
+		Name: "用户起的名字",
+		Path: t.TempDir(),
+		Tags: []string{"keep"},
+	}}
+
+	pf := ProjectFile{
+		Version: 1,
+		Project: Meta{Name: "模型编的名字", Tags: []string{"other"}},
+		Tasks:   []Task{{ID: "web", Command: "pnpm dev"}},
+	}
+	if err := s.ApplyConfig("p1", pf, false); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := s.ws.Projects[0].Name; got != "用户起的名字" {
+		t.Errorf("导入不该改项目名，得到 %q", got)
+	}
+	if got := s.ws.Projects[0].Tags; len(got) != 1 || got[0] != "keep" {
+		t.Errorf("导入不该改标签，得到 %v", got)
+	}
+}
+
+// 项目内配置模式保存：直接改仓库里的 .bootpane.json。
+func TestApplyConfigRepoWritesFile(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, repoBody)
+
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Path: repo, UseRepoConfig: true}}
+
+	pf := ProjectFile{
+		Version: 1,
+		Tasks:   []Task{{ID: "only", Label: "只剩一个", Command: "echo hi"}},
+	}
+	if err := s.ApplyConfig("p1", pf, true); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(repo, RepoConfigName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got ProjectFile
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("写入的文件应是合法 JSON: %v", err)
+	}
+	if len(got.Tasks) != 1 || got.Tasks[0].ID != "only" {
+		t.Errorf("仓库文件没有更新，得到 %+v", got.Tasks)
+	}
+	// 临时文件不能留在用户的工作区里
+	if _, err := os.Stat(filepath.Join(repo, RepoConfigName+".tmp")); err == nil {
+		t.Error("原子写入的临时文件应当被重命名掉，不能残留")
+	}
+}
+
+// 项目内配置模式下，写的是仓库文件而不是注册表里的任务。
+func TestApplyConfigRepoLeavesRegistryAlone(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, repoBody)
+
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:            "p1",
+		Path:          repo,
+		UseRepoConfig: true,
+		Tasks:         []Task{{ID: "global-only", Command: "echo global"}},
+	}}
+
+	pf := ProjectFile{Version: 1, Tasks: []Task{{ID: "repo-only", Command: "echo repo"}}}
+	if err := s.ApplyConfig("p1", pf, true); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(s.ws.Projects[0].Tasks) != 1 || s.ws.Projects[0].Tasks[0].ID != "global-only" {
+		t.Errorf("项目内配置模式不该动注册表里的任务，得到 %+v", s.ws.Projects[0].Tasks)
 	}
 }
 

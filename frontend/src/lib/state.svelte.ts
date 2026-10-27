@@ -69,6 +69,9 @@ class AppState {
   /** 当前打开「生成配置」弹窗的项目 id，null 表示弹窗关闭。 */
   generatorProjectId = $state<string | null>(null);
 
+  /** 当前打开「编辑配置」弹窗的项目 id，null 表示弹窗关闭。 */
+  editorProjectId = $state<string | null>(null);
+
   toast = $state("");
   toastIsError = $state(false);
 
@@ -97,6 +100,10 @@ class AppState {
 
   generatorProject = $derived(
     this.projects.find((p) => p.id === this.generatorProjectId) ?? null,
+  );
+
+  editorProject = $derived(
+    this.projects.find((p) => p.id === this.editorProjectId) ?? null,
   );
 
   activeLogKey = $derived(
@@ -425,6 +432,14 @@ class AppState {
 
   closeGenerator(): void {
     this.generatorProjectId = null;
+  }
+
+  openEditor(id: string): void {
+    this.editorProjectId = id;
+  }
+
+  closeEditor(): void {
+    this.editorProjectId = null;
   }
 
   /** 启动任务，返回是否成功（批量启动要据此统计失败数）。 */

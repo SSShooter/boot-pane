@@ -102,6 +102,45 @@ func (c *ConfigService) ImportTasks(id, raw string) (config.ImportResult, error)
 		return config.ImportResult{Error: err.Error()}, nil
 	}
 
+	// 导入只取任务定义，不碰项目名和标签：大模型给的名字往往是它自己编的，
+	// 覆盖掉用户在侧栏里认得的名字没有道理。
+	return c.applyConfig(p, pf, false, "导入的配置有错误，已取消写入")
+}
+
+// ConfigJSON 返回当前生效配置的完整 JSON 文本，供界面直接编辑。
+//
+// 返回的是「当前真正生效的那一份」：项目内配置模式读仓库文件原文，
+// 全局模式从注册表拼出来。界面不需要知道区别。
+func (c *ConfigService) ConfigJSON(id string) (string, error) {
+	return c.store.ConfigSnapshot(id)
+}
+
+// SaveConfigJSON 保存界面上编辑过的配置。
+//
+// 和 ImportTasks 共用同一条校验链路，但有两处不同：允许任务列表为空
+// （用户在编辑框里把启动项全删了是正常操作），以及项目名/标签跟着编辑框走
+// （编辑框里显示了什么，保存后就该是什么）。
+func (c *ConfigService) SaveConfigJSON(id, raw string) (config.ImportResult, error) {
+	p, err := c.store.Get(id)
+	if err != nil {
+		return config.ImportResult{}, err
+	}
+
+	pf, err := config.ParseEditableConfig(raw)
+	if err != nil {
+		return config.ImportResult{Error: err.Error()}, nil
+	}
+
+	return c.applyConfig(p, pf, true, "配置有错误，未保存")
+}
+
+// applyConfig 是「导入」和「编辑保存」共用的校验 + 落盘逻辑。
+//
+// 两条路径都走这里，是为了不出现「导入会被校验拦住、编辑却能写进去」这种
+// 两套行为。syncMeta 决定是否把 project 里的名称和标签一起写回注册表。
+func (c *ConfigService) applyConfig(p config.ResolvedProject, pf config.ProjectFile, syncMeta bool, failMsg string) (config.ImportResult, error) {
+	// 校验要按项目的真实路径跑：工作目录存不存在、依赖指向的任务在不在，
+	// 这些都只有拿到磁盘上的实际情况才判得准。
 	check := config.ResolvedProject{
 		Path:      p.Path,
 		Exists:    p.Exists,
@@ -111,14 +150,11 @@ func (c *ConfigService) ImportTasks(id, raw string) (config.ImportResult, error)
 	issues := config.Validate(&check)
 	for _, issue := range issues {
 		if issue.Level == "error" {
-			return config.ImportResult{
-				Error:  "导入的配置有错误，已取消写入",
-				Issues: issues,
-			}, nil
+			return config.ImportResult{Error: failMsg, Issues: issues}, nil
 		}
 	}
 
-	if err := c.store.SetTasks(id, pf.Tasks, pf.Pipelines); err != nil {
+	if err := c.store.ApplyConfig(p.ID, pf, syncMeta); err != nil {
 		return config.ImportResult{}, err
 	}
 	return config.ImportResult{OK: true, Imported: len(pf.Tasks), Issues: issues}, nil
