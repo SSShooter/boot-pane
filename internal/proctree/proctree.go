@@ -10,7 +10,7 @@ package proctree
 
 import (
 	"errors"
-	"os/exec"
+	"time"
 )
 
 // ErrNotImplemented 表示当前平台实现尚未接入。
@@ -18,9 +18,30 @@ var ErrNotImplemented = errors.New("进程树管理尚未实现")
 
 // Group 是一组需要同生共死的进程。
 type Group interface {
-	// Attach 把即将启动的进程纳入管理。必须在 cmd.Start 之前或紧随其后调用，
-	// 具体时机由平台实现决定（Windows 需要进程处于挂起状态）。
-	Attach(cmd *exec.Cmd) error
-	// Kill 终止整棵进程树，包括已经脱离父进程的孙子进程。
+	// Handle 返回底层容器的原生句柄，供上层在创建进程时一次性挂载。
+	//
+	// Windows 返回 Job Object 句柄，pty 会把它塞进 STARTUPINFOEX 属性列表，
+	// 保证进程一生出来就在 Job 里。Unix 返回 0——那边靠 Setpgid 在启动时
+	// 定好进程组，不需要预先挂载。
+	Handle() uintptr
+
+	// Kill 终止整棵进程树，包括已经脱离父进程的孙子进程。幂等。
 	Kill() error
+
+	// Usage 返回整棵树的累计资源占用。
+	//
+	// 注意是「累计」：CPU 时间包含已经退出的子进程，所以调用方要自己按
+	// 两次采样的差值算占用率，不能直接拿绝对值当当前负载。
+	Usage() (Usage, error)
+
+	// Close 释放容器句柄。Windows 上因为开了 KILL_ON_JOB_CLOSE，
+	// 关闭句柄会顺带杀掉残留进程，这是应用崩溃时的兜底。
+	Close() error
+}
+
+// Usage 是一次资源采样。
+type Usage struct {
+	CPUTime   time.Duration // 整棵树累计 CPU 时间（用户态 + 内核态）
+	Memory    uint64        // 整棵树当前工作集之和，字节
+	Processes int           // 当前活着的进程数
 }

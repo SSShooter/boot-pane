@@ -6,6 +6,7 @@ import (
 	"runtime"
 
 	"bootpane/internal/config"
+	"bootpane/internal/portinfo"
 	"bootpane/internal/process"
 )
 
@@ -126,6 +127,24 @@ func NewProcessService(m *process.Manager, s *config.Store) *ProcessService {
 // ListRunning 返回所有任务的运行快照。
 func (p *ProcessService) ListRunning() []process.Runtime {
 	return p.mgr.List()
+}
+
+// TaskLog 返回某个任务已缓冲的日志全量。
+//
+// 前端打开日志面板时先拉一次历史，之后靠 bootpane:log 事件增量追加。
+// 用一次性拉取而不是把全量塞进事件，是因为事件通道承载不了几百 KB 的突发。
+func (p *ProcessService) TaskLog(projectID, taskID string) string {
+	return p.mgr.Log(projectID, taskID)
+}
+
+// CheckPorts 批量查询端口占用。
+//
+// 和 ListRunning 分开是有意的：任务状态只反映「bootpane 启动的那个进程」，
+// 端口状态反映「服务是否活着」，两者会不一致。典型场景是启动脚本自己发现
+// 「已在运行」就跳过退出——进程退了，但服务是活的，只看任务状态就会误报
+// 「已停止」。
+func (p *ProcessService) CheckPorts(ports []int) []portinfo.Listener {
+	return portinfo.LookupAll(ports)
 }
 
 // StartTask 启动项目下的某个任务。
