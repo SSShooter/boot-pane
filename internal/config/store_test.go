@@ -239,6 +239,68 @@ func TestSetUseRepoConfigPersists(t *testing.T) {
 	}
 }
 
+func TestSettingsDefaultToOff(t *testing.T) {
+	// 老版本写出来的 workspace.json 里没有 settings 字段，
+	// 读进来必须落在「不自动打开日志」上，不能因为零值之外的默认值而改变行为。
+	dir := t.TempDir()
+	old := `{"version":1,"projects":[],"stars":[]}`
+	if err := os.WriteFile(filepath.Join(dir, configFileName), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &Store{dir: dir}
+	if err := s.load(); err != nil {
+		t.Fatal(err)
+	}
+	if s.Settings().AutoOpenLogOnStart {
+		t.Error("旧配置文件应读成不自动打开日志")
+	}
+}
+
+func TestSetAutoOpenLogOnStartPersists(t *testing.T) {
+	s := newStore(t)
+
+	if err := s.SetAutoOpenLogOnStart(true); err != nil {
+		t.Fatal(err)
+	}
+	if !s.Settings().AutoOpenLogOnStart {
+		t.Error("开关没有写回内存")
+	}
+
+	// 重新从磁盘加载，确认落盘
+	reloaded := &Store{dir: s.dir}
+	if err := reloaded.load(); err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.Settings().AutoOpenLogOnStart {
+		t.Error("开关没有落盘")
+	}
+
+	if err := s.SetAutoOpenLogOnStart(false); err != nil {
+		t.Fatal(err)
+	}
+	if s.Settings().AutoOpenLogOnStart {
+		t.Error("关闭开关没有生效")
+	}
+}
+
+// 偏好存在注册表顶层，和项目、星标同级，不跟着仓库配置走。
+func TestSettingsSurviveRepoConfigMode(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, repoBody)
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Name: "n", Path: repo, UseRepoConfig: true}}
+
+	if err := s.SetAutoOpenLogOnStart(true); err != nil {
+		t.Fatal(err)
+	}
+	// 读仓库配置不应该碰到偏好字段
+	_ = s.Projects()
+	if !s.Settings().AutoOpenLogOnStart {
+		t.Error("解析项目时不该影响本机偏好")
+	}
+}
+
 func TestParseProjectFileToleratesFences(t *testing.T) {
 	raw := "这是配置：\n```json\n" + repoBody + "\n```\n希望有帮助！"
 	pf, err := ParseProjectFile(raw)

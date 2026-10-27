@@ -3,6 +3,7 @@
   import Sidebar from "./components/Sidebar.svelte";
   import ProjectPanel from "./components/ProjectPanel.svelte";
   import StarredPanel from "./components/StarredPanel.svelte";
+  import SettingsPanel from "./components/SettingsPanel.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
   import ConfigEditor from "./components/ConfigEditor.svelte";
   import LogPanel from "./components/LogPanel.svelte";
@@ -20,7 +21,9 @@
   <Sidebar />
 
   <main class="content">
-    {#if app.showStarred}
+    {#if app.showSettings}
+      <SettingsPanel />
+    {:else if app.showStarred}
       <StarredPanel />
     {:else if app.selected}
       <ProjectPanel project={app.selected} />

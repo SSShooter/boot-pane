@@ -2,6 +2,7 @@ import { ConfigService, ProcessService } from "../../bindings/bootpane";
 import type {
   ImportResult,
   ResolvedProject,
+  Settings,
 } from "../../bindings/bootpane/internal/config/models";
 import type { Runtime } from "../../bindings/bootpane/internal/process/models";
 import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
@@ -32,6 +33,10 @@ export interface Api {
   configJson(id: string): Promise<string>;
   /** 保存编辑过的配置。写入目标跟着项目的配置来源走。 */
   saveConfigJson(id: string, raw: string): Promise<ImportResult>;
+  /** 读本机偏好（自动打开日志这类开关）。偏好存在 workspace.json 顶层。 */
+  getSettings(): Promise<Settings>;
+  /** 切换「启动任务后自动打开日志」。 */
+  setAutoOpenLogOnStart(enabled: boolean): Promise<void>;
   listRunning(): Promise<Runtime[]>;
   startTask(projectId: string, taskId: string): Promise<void>;
   stopTask(projectId: string, taskId: string): Promise<void>;
@@ -55,6 +60,8 @@ const realApi: Api = {
   importTasks: (id, raw) => ConfigService.ImportTasks(id, raw),
   configJson: (id) => ConfigService.ConfigJSON(id),
   saveConfigJson: (id, raw) => ConfigService.SaveConfigJSON(id, raw),
+  getSettings: () => ConfigService.GetSettings(),
+  setAutoOpenLogOnStart: (enabled) => ConfigService.SetAutoOpenLogOnStart(enabled),
   listRunning: () => ProcessService.ListRunning(),
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),

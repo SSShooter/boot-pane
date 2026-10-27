@@ -354,6 +354,34 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 	return rp
 }
 
+// Settings 返回本机偏好的副本。
+//
+// 返回副本而不是指针：调用方（前端服务）不该有机会绕过 SetXxx 直接改内存。
+func (s *Store) Settings() Settings {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.ws.Settings
+}
+
+// SetAutoOpenLogOnStart 设置「启动任务后自动打开日志」。
+//
+// 幂等：值没变化就不写盘。写盘失败回滚内存，避免内存和磁盘各说各话。
+func (s *Store) SetAutoOpenLogOnStart(enabled bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prev := s.ws.Settings.AutoOpenLogOnStart
+	if prev == enabled {
+		return nil
+	}
+	s.ws.Settings.AutoOpenLogOnStart = enabled
+	if err := s.save(); err != nil {
+		s.ws.Settings.AutoOpenLogOnStart = prev
+		return err
+	}
+	return nil
+}
+
 // SetUseRepoConfig 切换某个项目的配置来源。
 func (s *Store) SetUseRepoConfig(id string, enabled bool) error {
 	s.mu.Lock()

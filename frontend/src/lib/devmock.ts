@@ -151,6 +151,9 @@ const mockOccupied: Record<number, { pid: number; process: string }> = {
   3001: { pid: 47772, process: "node.exe" },
 };
 
+/** 预览模式下的本机偏好，只存在内存里，刷新页面就回到默认值。 */
+const mockSettings = { autoOpenLogOnStart: false };
+
 export const mockApi = {
   async listProjects(): Promise<ResolvedProject[]> {
     return mockProjects;
@@ -221,6 +224,12 @@ export const mockApi = {
     if (parsed?.project?.name) p.name = parsed.project.name;
     if (Array.isArray(parsed?.project?.tags)) p.tags = parsed.project.tags;
     return { ok: true, imported: p.tasks.length, issues: [] };
+  },
+  async getSettings() {
+    return { ...mockSettings };
+  },
+  async setAutoOpenLogOnStart(enabled: boolean): Promise<void> {
+    mockSettings.autoOpenLogOnStart = enabled;
   },
   async listRunning() {
     return [...mockRuntimes.values()];

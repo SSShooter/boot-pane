@@ -273,6 +273,20 @@ input {
   border-bottom-color: var(--accent);
 }
 
+/* 当前正停在设置页时给个「已选中」的样子，
+   否则页脚这几个链接点进去和普通按钮没区别。 */
+.link-btn.is-on {
+  color: var(--accent-ink);
+  border-bottom-color: var(--accent);
+}
+
+.foot-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
 /* ---------- 主内容区 ---------- */
 
 .content {
@@ -843,6 +857,92 @@ input {
   color: var(--text-dim);
   overflow-x: auto;
   white-space: pre;
+}
+
+/* ---------- 设置页 ---------- */
+
+.setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 一行一个开关：左边文字可以换行，右边控件固定不被挤压。 */
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 13px 15px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.setting-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font-weight: 500;
+}
+
+.setting-desc {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+
+.setting-desc code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--surface-sunk);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.setting-row > .btn {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* 开关本体。用 button 而不是 input[type=checkbox]：
+   原生复选框没法做成这个尺寸，且这里只需要「点一下切换」。 */
+.switch {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 11px;
+  background: var(--border-strong);
+  transition: background 0.16s ease;
+}
+
+.switch.is-on {
+  background: var(--accent);
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.28);
+  transition: transform 0.16s ease;
+}
+
+.switch.is-on .switch-knob {
+  transform: translateX(16px);
 }
 
 /* ---------- 生成配置弹窗 ---------- */

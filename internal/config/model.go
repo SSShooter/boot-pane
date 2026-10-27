@@ -27,6 +27,18 @@ type Workspace struct {
 	Version  int       `json:"version"`
 	Projects []Project `json:"projects"`
 	Stars    []StarRef `json:"stars,omitempty"`
+	Settings Settings  `json:"settings"`
+}
+
+// Settings 是本机偏好，存在全局注册表的顶层。
+//
+// 和 StarRef 一样，这些是「这台机器上的使用习惯」，不能写进随仓库分发的
+// .bootpane.json：切到项目内配置时那些字段无处落地，还会被提交给团队。
+type Settings struct {
+	// AutoOpenLogOnStart 启动任务后自动展开该任务的日志抽屉。
+	// 零值 false 表示不自动打开，与老版本行为一致；旧配置文件里没有
+	// settings 字段时反序列化后就是这个零值，不需要额外迁移。
+	AutoOpenLogOnStart bool `json:"autoOpenLogOnStart"`
 }
 
 // StarRef 指向一个被星标的任务。
