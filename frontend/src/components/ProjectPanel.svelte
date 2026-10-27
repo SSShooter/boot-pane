@@ -50,6 +50,9 @@
           </button>
         </div>
       </div>
+      {#if project.description}
+        <div class="panel-desc">{project.description}</div>
+      {/if}
       <div class="panel-path">{project.path}</div>
       {#if project.tags.length > 0}
         <div class="tag-row">

@@ -46,7 +46,11 @@ cd frontend && npm run dev   # http://127.0.0.1:9245
 ```jsonc
 {
   "version": 1,
-  "project": { "name": "my-shop", "tags": ["uni-app"] },
+  "project": {
+    "name": "my-shop",
+    "description": "uni-app 商城，前端 h5 + 小程序 + 本地 mock 服务",  // 显示在项目头部
+    "tags": ["uni-app"]
+  },
   "tasks": [
     {
       "id": "web",
@@ -74,6 +78,8 @@ cd frontend && npm run dev   # http://127.0.0.1:9245
 ```
 
 `waitFor` 是这里最关键的一个字段：它定义了「什么算启动完成」。没有它就只能够靠 `sleep 3` 猜，而猜是不准的——端口没起来就启动下一个，下一个必然失败。
+
+`project.name` 和 `project.description` 是模型生成配置时一并给出的项目元信息：导入时会写进项目（名称显示在侧栏和标题，描述显示在标题下），模型省略或给了空值时保留原值。标签不在这份输出约定里，导入不会改动它；在编辑框里保存则以框里为准，删空就是删空。
 
 ## 代码结构
 

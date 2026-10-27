@@ -128,7 +128,7 @@
           bind:value={pasted}
           rows="7"
           spellcheck="false"
-          placeholder={'{\n  "version": 1,\n  "tasks": [ … ]\n}'}
+          placeholder={'{\n  "version": 1,\n  "project": { … },\n  "tasks": [ … ]\n}'}
         ></textarea>
 
         {#if errorMsg}

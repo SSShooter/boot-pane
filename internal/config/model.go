@@ -57,8 +57,10 @@ type StarRef struct {
 // 默认情况下启动按钮全部存在这里，用户不需要往仓库里塞任何文件。
 // 只有显式把 UseRepoConfig 打开，才会去读仓库根目录的 .bootpane.json。
 type Project struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Description 是一句话说明，显示在项目头部。可以为空。
+	Description   string     `json:"description,omitempty"`
 	Path          string     `json:"path"`
 	Tags          []string   `json:"tags,omitempty"`
 	Pinned        bool       `json:"pinned,omitempty"`
@@ -77,8 +79,11 @@ type ProjectFile struct {
 
 // Meta 是仓库自带的项目元信息，注册表里没填时用它兜底。
 type Meta struct {
-	Name string   `json:"name,omitempty"`
-	Tags []string `json:"tags,omitempty"`
+	Name string `json:"name,omitempty"`
+	// Description 是这个项目干什么的一句话说明，供界面显示。
+	// 和 Name 一样，注册表里有值时以注册表为准。
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 }
 
 // Task 是一个启动按钮的全部定义。
@@ -124,8 +129,10 @@ type Pipeline struct {
 
 // ResolvedProject 是配置解析后的只读视图，直接交给前端渲染。
 type ResolvedProject struct {
-	ID            string     `json:"id"`
-	Name          string     `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Description 可能来自注册表，也可能来自仓库 meta，可能为空。
+	Description   string     `json:"description"`
 	Path          string     `json:"path"`
 	Tags          []string   `json:"tags"`
 	Pinned        bool       `json:"pinned"`
