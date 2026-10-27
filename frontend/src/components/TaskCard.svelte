@@ -48,11 +48,17 @@
     if (!info?.listening) return;
 
     const who = info.process ? `${info.process}（PID ${info.pid}）` : `PID ${info.pid}`;
-    const ok = confirm(
-      `将终止占用端口 ${info.port} 的 ${who} 及其所有子进程，然后重新启动「${task.label}」。\n\n` +
-        `如果那是你手动启动的实例，其中未保存的状态会丢失。确定继续？`,
-    );
-    if (ok) void app.restartTask(projectId, task.id);
+    void app
+      .confirm({
+        title: `终止端口 ${info.port} 上的进程并重启？`,
+        body: `将终止 ${who} 及其所有子进程，然后重新启动「${task.label}」。`,
+        detail: "如果那是你手动启动的实例，其中未保存的状态会丢失。",
+        confirmLabel: "终止并重启",
+        danger: true,
+      })
+      .then((ok) => {
+        if (ok) void app.restartTask(projectId, task.id);
+      });
   }
 
   const stateText = $derived.by(() => {

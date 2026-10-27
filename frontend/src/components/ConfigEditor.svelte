@@ -79,9 +79,18 @@
     }
   }
 
-  function requestClose(): void {
+  async function requestClose(): Promise<void> {
     if (saving) return;
-    if (dirty && !confirm("有未保存的修改，确定关闭？")) return;
+    if (dirty) {
+      const ok = await app.confirm({
+        title: "放弃未保存的修改？",
+        body: "编辑器里的内容还没有保存，关闭后这些修改会丢失。",
+        confirmLabel: "放弃并关闭",
+        cancelLabel: "继续编辑",
+        danger: true,
+      });
+      if (!ok) return;
+    }
     onclose();
   }
 
@@ -116,7 +125,9 @@
   }
 
   function onKeydown(e: KeyboardEvent): void {
-    if (e.key === "Escape") requestClose();
+    // 确认框开着时键盘归它管：Esc 应该只关确认框，不能顺手把编辑器也关了。
+    if (app.confirmOpen) return;
+    if (e.key === "Escape") void requestClose();
     // Ctrl/Cmd + S 直接保存，编辑大段 JSON 时手不用离开键盘。
     if ((e.ctrlKey || e.metaKey) && e.key === "s") {
       e.preventDefault();

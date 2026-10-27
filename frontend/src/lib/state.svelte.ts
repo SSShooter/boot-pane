@@ -53,6 +53,25 @@ function isPseudoView(id: string): boolean {
   return id === STARRED_VIEW || id === SETTINGS_VIEW;
 }
 
+/**
+ * 一个待用户确认的操作。
+ *
+ * 用结构化的字段而不是一整段纯文本：标题、正文、补充说明在界面上
+ * 的字号和颜色都不一样，塞进一个字符串里就没法分层了。
+ */
+export type ConfirmRequest = {
+  /** 一句话说清要做什么，作为弹窗标题。 */
+  title: string;
+  /** 主内容：动作本身和受影响的对象。 */
+  body?: string;
+  /** 补充说明：后果、不可逆提示之类，视觉上弱化。 */
+  detail?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** 破坏性操作用红色确认按钮。 */
+  danger?: boolean;
+};
+
 class AppState {
   projects = $state<ResolvedProject[]>([]);
   runtimes = $state<Record<string, Runtime>>({});
@@ -96,6 +115,15 @@ class AppState {
   toast = $state("");
   toastIsError = $state(false);
 
+  /**
+   * 当前弹出的应用内确认框，null 表示没弹。
+   *
+   * 不用 window.confirm：原生弹窗画在窗口之外（Windows 上是系统对话框），
+   * 主题、字体、按钮都跟界面完全脱节，还会阻塞渲染线程。
+   */
+  confirmRequest = $state<ConfirmRequest | null>(null);
+
+  private confirmResolve: ((ok: boolean) => void) | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
   /** 每个任务尚未收完的 ANSI 转义序列尾巴，跨事件块续接用。 */
   private ansiCarry = new Map<string, string>();
@@ -129,6 +157,9 @@ class AppState {
   editorProject = $derived(
     this.projects.find((p) => p.id === this.editorProjectId) ?? null,
   );
+
+  /** 是否有确认框正开着（键盘处理要据此让路，否则 Esc 会被抢两次）。 */
+  confirmOpen = $derived(this.confirmRequest !== null);
 
   activeLogKey = $derived(
     this.activeLog ? taskKey(this.activeLog.projectId, this.activeLog.taskId) : "",
@@ -566,6 +597,27 @@ class AppState {
       this.restarting[key] = false;
       await Promise.all([this.refreshRuntimes(), this.refreshPorts()]);
     }
+  }
+
+  /**
+   * 弹一个应用内确认框，等用户点按钮后兑现 true / false。
+   *
+   * 上一个还没答完（正常流程走不到）就先按取消兑现，免得那个 promise 永远悬着。
+   */
+  confirm(req: ConfirmRequest): Promise<boolean> {
+    this.resolveConfirm(false);
+    return new Promise<boolean>((resolve) => {
+      this.confirmResolve = resolve;
+      this.confirmRequest = req;
+    });
+  }
+
+  /** 关掉确认框并把结果交给等待方。 */
+  resolveConfirm(ok: boolean): void {
+    this.confirmRequest = null;
+    const resolve = this.confirmResolve;
+    this.confirmResolve = null;
+    resolve?.(ok);
   }
 
   notify(message: string, isError = false): void {

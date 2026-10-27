@@ -23,8 +23,17 @@
   const repoHint = $derived(project.exists && project.hasRepoConfig && !project.useRepoConfig);
 
   function confirmRemove(): void {
-    const ok = confirm(`从列表移除「${project.name}」？\n磁盘上的仓库文件不会被删除。`);
-    if (ok) app.removeProject(project.id);
+    void app
+      .confirm({
+        title: `从列表移除「${project.name}」？`,
+        body: "这个项目会从 bootpane 的项目列表里消失，随时可以通过目录重新添加。",
+        detail: "磁盘上的仓库文件不会被删除。",
+        confirmLabel: "移除",
+        danger: true,
+      })
+      .then((ok) => {
+        if (ok) void app.removeProject(project.id);
+      });
   }
 </script>
 

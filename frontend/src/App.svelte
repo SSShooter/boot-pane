@@ -6,6 +6,7 @@
   import SettingsPanel from "./components/SettingsPanel.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
   import ConfigEditor from "./components/ConfigEditor.svelte";
+  import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
 
@@ -55,6 +56,8 @@
 {/if}
 
 <LogPanel />
+
+<ConfirmDialog />
 
 {#if app.toast}
   <div class="toast" class:err={app.toastIsError} role="status" aria-live="polite">{app.toast}</div>
