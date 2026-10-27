@@ -1217,6 +1217,49 @@ input {
   overflow-wrap: break-word;
 }
 
+/* ---------- 确认框 ---------- */
+
+/* 确认框可能盖在编辑器弹窗（z-index 40）之上，但要让位给 toast（50）：
+   操作结果比遮罩更该被看见。 */
+.overlay-confirm {
+  z-index: 45;
+}
+
+.dialog-confirm {
+  width: min(440px, 100%);
+}
+
+/* 确认框只有两段文字，用不着编辑弹窗那么大的段间距。 */
+.dialog-body.confirm-body {
+  gap: 8px;
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
+.confirm-text {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.confirm-detail {
+  margin: 0;
+  color: var(--text-faint);
+}
+
+/* 破坏性操作的确认按钮：实心红，和「移除 / 终止」这类动作对上。
+   .btn-danger 只是 hover 变红（给卡片上的次要按钮用），这里是主按钮。 */
+.btn-danger-solid {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
+}
+
+.btn-danger-solid:hover {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
 /* ---------- Toast ---------- */
 
 .toast {
