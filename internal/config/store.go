@@ -277,6 +277,7 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 	rp := ResolvedProject{
 		ID:             p.ID,
 		Name:           p.Name,
+		Description:    p.Description,
 		Path:           p.Path,
 		Tags:           append([]string{}, p.Tags...),
 		Pinned:         p.Pinned,
@@ -345,6 +346,10 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 	}
 	if rp.Name == "" {
 		rp.Name = filepath.Base(p.Path)
+	}
+	// 描述和名字走同一条回退链：注册表里填了就用注册表，否则用仓库 meta。
+	if rp.Description == "" {
+		rp.Description = pf.Project.Description
 	}
 	if rp.Tags == nil {
 		rp.Tags = []string{}
@@ -453,7 +458,7 @@ func (s *Store) ConfigSnapshot(id string) (string, error) {
 		case errors.Is(err, os.ErrNotExist):
 			return marshalProjectFile(ProjectFile{
 				Version: 1,
-				Project: Meta{Name: p.Name, Tags: p.Tags},
+				Project: Meta{Name: p.Name, Description: p.Description, Tags: p.Tags},
 			})
 		default:
 			return "", fmt.Errorf("读取 %s 失败: %w", RepoConfigName, err)
@@ -462,7 +467,7 @@ func (s *Store) ConfigSnapshot(id string) (string, error) {
 
 	return marshalProjectFile(ProjectFile{
 		Version:   1,
-		Project:   Meta{Name: p.Name, Tags: p.Tags},
+		Project:   Meta{Name: p.Name, Description: p.Description, Tags: p.Tags},
 		Tasks:     p.Tasks,
 		Pipelines: p.Pipelines,
 	})
@@ -473,8 +478,10 @@ func (s *Store) ConfigSnapshot(id string) (string, error) {
 // 全局模式写注册表，项目内模式写仓库里的 .bootpane.json——两条路走同一个入口，
 // 免得界面上的编辑和「导入」出现两套校验、两套行为。
 //
-// syncMeta 控制是否把 project 里的名称和标签一并写回注册表。导入路径传 false：
-// 大模型编的项目名不该覆盖用户在侧栏里认得的名字。
+// syncMeta 控制 project 里的元信息怎么写回注册表：编辑路径传 true，名称/描述/标签
+// 都以传入的配置为准（允许清空）；导入路径传 false，名称和描述取 JSON 里给出的非空值，
+// 标签不动。导入也要写名称和描述，否则 prompt 里要求的字段等于白写——模型给了却不用，
+// 用户导入后看到的还是旧名字、旧描述。空值视为「模型没给」，保留注册表原值。
 func (s *Store) ApplyConfig(id string, pf ProjectFile, syncMeta bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -496,7 +503,7 @@ func (s *Store) ApplyConfig(id string, pf ProjectFile, syncMeta bool) error {
 	}
 
 	prevTasks, prevPipelines := p.Tasks, p.Pipelines
-	prevName, prevTags := p.Name, p.Tags
+	prevName, prevTags, prevDesc := p.Name, p.Tags, p.Description
 
 	p.Tasks = pf.Tasks
 	p.Pipelines = pf.Pipelines
@@ -507,11 +514,22 @@ func (s *Store) ApplyConfig(id string, pf ProjectFile, syncMeta bool) error {
 			p.Name = name
 		}
 		p.Tags = pf.Project.Tags
+		p.Description = strings.TrimSpace(pf.Project.Description)
+	} else {
+		// 导入路径：模型在 JSON 里给出的名称和描述要落到项目上，否则界面上
+		// 看不到这次生成的元信息。空值当作「没给」，保留原值——prompt 允许
+		// 省略 description，省略时不该把用户手写的那句清掉。
+		if name := strings.TrimSpace(pf.Project.Name); name != "" {
+			p.Name = name
+		}
+		if desc := strings.TrimSpace(pf.Project.Description); desc != "" {
+			p.Description = desc
+		}
 	}
 
 	if err := s.save(); err != nil {
 		p.Tasks, p.Pipelines = prevTasks, prevPipelines
-		p.Name, p.Tags = prevName, prevTags
+		p.Name, p.Tags, p.Description = prevName, prevTags, prevDesc
 		return err
 	}
 	return nil

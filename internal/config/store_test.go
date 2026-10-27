@@ -440,8 +440,9 @@ func TestApplyConfigGlobalPersists(t *testing.T) {
 	}
 }
 
-// 导入路径传 syncMeta=false：大模型编的名字不能覆盖用户认得的名字。
-func TestApplyConfigImportKeepsName(t *testing.T) {
+// 导入要把 JSON 里的名称和描述写进项目：模型给了却不用，界面上就看不到。
+// 标签不在 prompt 的输出约定里，导入时保持原值。
+func TestApplyConfigImportUsesNameAndDescription(t *testing.T) {
 	s := newStore(t)
 	s.ws.Projects = []Project{{
 		ID:   "p1",
@@ -452,18 +453,100 @@ func TestApplyConfigImportKeepsName(t *testing.T) {
 
 	pf := ProjectFile{
 		Version: 1,
-		Project: Meta{Name: "模型编的名字", Tags: []string{"other"}},
+		Project: Meta{Name: "my-shop", Description: "uni-app 商城，前端 h5 + 后端 Go API", Tags: []string{"other"}},
 		Tasks:   []Task{{ID: "web", Command: "pnpm dev"}},
 	}
 	if err := s.ApplyConfig("p1", pf, false); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := s.ws.Projects[0].Name; got != "用户起的名字" {
-		t.Errorf("导入不该改项目名，得到 %q", got)
+	got := s.ws.Projects[0]
+	if got.Name != "my-shop" {
+		t.Errorf("导入应使用 JSON 里的名称，得到 %q", got.Name)
 	}
-	if got := s.ws.Projects[0].Tags; len(got) != 1 || got[0] != "keep" {
-		t.Errorf("导入不该改标签，得到 %v", got)
+	if got.Description != "uni-app 商城，前端 h5 + 后端 Go API" {
+		t.Errorf("导入应使用 JSON 里的描述，得到 %q", got.Description)
+	}
+	if len(got.Tags) != 1 || got.Tags[0] != "keep" {
+		t.Errorf("导入不该改标签，得到 %v", got.Tags)
+	}
+}
+
+// 模型省略字段是允许的（prompt 明确说拿不准就省略），此时不能清空已有值。
+func TestApplyConfigImportEmptyMetaKeepsExisting(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:          "p1",
+		Name:        "my-shop",
+		Description: "我自己写的描述",
+		Path:        t.TempDir(),
+	}}
+
+	pf := ProjectFile{
+		Version: 1,
+		Project: Meta{Name: "  "},
+		Tasks:   []Task{{ID: "web", Command: "pnpm dev"}},
+	}
+	if err := s.ApplyConfig("p1", pf, false); err != nil {
+		t.Fatal(err)
+	}
+
+	got := s.ws.Projects[0]
+	if got.Name != "my-shop" {
+		t.Errorf("导入没给名称时不该清空，得到 %q", got.Name)
+	}
+	if got.Description != "我自己写的描述" {
+		t.Errorf("导入没给描述时不该清空，得到 %q", got.Description)
+	}
+}
+
+// 编辑框保存是另一套规则：框里写了什么就是什么，包括清空。
+// 否则编辑框里把描述删掉再保存，界面上还留着旧值，框就是「假的」。
+func TestApplyConfigEditSyncsDescription(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:          "p1",
+		Name:        "my-shop",
+		Description: "旧描述",
+		Path:        t.TempDir(),
+	}}
+
+	pf := ProjectFile{Version: 1, Project: Meta{Description: "  新描述  "}}
+	if err := s.ApplyConfig("p1", pf, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.ws.Projects[0].Description; got != "新描述" {
+		t.Errorf("编辑保存应同步描述并去掉首尾空白，得到 %q", got)
+	}
+
+	// 再保存一次空描述：允许清空
+	if err := s.ApplyConfig("p1", ProjectFile{Version: 1}, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.ws.Projects[0].Description; got != "" {
+		t.Errorf("编辑保存应允许清空描述，得到 %q", got)
+	}
+}
+
+// 描述和名字走同一条回退链：注册表优先，空了才看仓库 meta。
+func TestResolveDescriptionFallback(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, `{
+		"version": 1,
+		"project": {"description": "仓库里的描述"},
+		"tasks": [{"id": "web", "command": "pnpm dev"}]
+	}`)
+
+	s := newStore(t)
+
+	rp := s.Resolve(Project{ID: "p1", Name: "x", Path: repo})
+	if rp.Description != "仓库里的描述" {
+		t.Errorf("注册表没描述时应回落到仓库 meta，得到 %q", rp.Description)
+	}
+
+	rp = s.Resolve(Project{ID: "p1", Name: "x", Description: "注册表的描述", Path: repo})
+	if rp.Description != "注册表的描述" {
+		t.Errorf("注册表有描述时应优先，得到 %q", rp.Description)
 	}
 }
 
@@ -536,6 +619,17 @@ func TestBuildPromptMentionsProjectPath(t *testing.T) {
 	}
 }
 
+// 描述和项目名要出现在 prompt 的输出结构里，否则模型不会给，
+// 界面上那行描述永远是空的。
+func TestBuildPromptAsksForProjectMeta(t *testing.T) {
+	prompt := BuildPrompt(ResolvedProject{Path: `D:\code\my-shop`})
+	for _, want := range []string{`"project"`, `"description"`, "【项目信息】"} {
+		if !strings.Contains(prompt, want) {
+			t.Errorf("prompt 里应包含 %s，否则模型不会输出项目信息", want)
+		}
+	}
+}
+
 // dependsOn / pipelines 目前没有执行方，prompt 里一出现就会让用户配出
 // 点了不生效的东西。等 M2 把调度接上再改这个测试。
 func TestBuildPromptOmitsUnimplementedFields(t *testing.T) {
@@ -546,7 +640,6 @@ func TestBuildPromptOmitsUnimplementedFields(t *testing.T) {
 		}
 	}
 }
-
 
 func TestValidateMissingDependency(t *testing.T) {
 	rp := ResolvedProject{

@@ -43,6 +43,11 @@ export interface Pipeline {
 export interface ResolvedProject {
     "id": string;
     "name": string;
+
+    /**
+     * Description 可能来自注册表，也可能来自仓库 meta，可能为空。
+     */
+    "description": string;
     "path": string;
     "tags": string[] | null;
     "pinned": boolean;

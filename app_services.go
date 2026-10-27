@@ -115,8 +115,9 @@ func (c *ConfigService) ImportTasks(id, raw string) (config.ImportResult, error)
 		return config.ImportResult{Error: err.Error()}, nil
 	}
 
-	// 导入只取任务定义，不碰项目名和标签：大模型给的名字往往是它自己编的，
-	// 覆盖掉用户在侧栏里认得的名字没有道理。
+	// 导入会把 JSON 里的项目名和描述写进注册表：prompt 已经要求模型输出这两项，
+	// 模型给了却不用，界面上看到的还是旧名字、旧描述。空值视为模型没给，保留原值；
+	// 标签不在输出约定里，不动。
 	return c.applyConfig(p, pf, false, "导入的配置有错误，已取消写入")
 }
 
@@ -131,8 +132,8 @@ func (c *ConfigService) ConfigJSON(id string) (string, error) {
 // SaveConfigJSON 保存界面上编辑过的配置。
 //
 // 和 ImportTasks 共用同一条校验链路，但有两处不同：允许任务列表为空
-// （用户在编辑框里把启动项全删了是正常操作），以及项目名/标签跟着编辑框走
-// （编辑框里显示了什么，保存后就该是什么）。
+// （用户在编辑框里把启动项全删了是正常操作），以及项目名/描述/标签跟着编辑框走
+// （编辑框里显示了什么，保存后就该是什么，包括把描述删空）。
 func (c *ConfigService) SaveConfigJSON(id, raw string) (config.ImportResult, error) {
 	p, err := c.store.Get(id)
 	if err != nil {
@@ -150,7 +151,9 @@ func (c *ConfigService) SaveConfigJSON(id, raw string) (config.ImportResult, err
 // applyConfig 是「导入」和「编辑保存」共用的校验 + 落盘逻辑。
 //
 // 两条路径都走这里，是为了不出现「导入会被校验拦住、编辑却能写进去」这种
-// 两套行为。syncMeta 决定是否把 project 里的名称和标签一起写回注册表。
+// 两套行为。syncMeta 决定 project 里的元信息怎么写回注册表：true 时名称、
+// 描述、标签全以传入的配置为准（编辑框里有什么就是什么）；false 时只取
+// 名称和描述的非空值，标签不动。
 func (c *ConfigService) applyConfig(p config.ResolvedProject, pf config.ProjectFile, syncMeta bool, failMsg string) (config.ImportResult, error) {
 	// 校验要按项目的真实路径跑：工作目录存不存在、依赖指向的任务在不在，
 	// 这些都只有拿到磁盘上的实际情况才判得准。

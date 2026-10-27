@@ -104,8 +104,8 @@ export function RemoveProject(id: string): $CancellablePromise<void> {
  * SaveConfigJSON 保存界面上编辑过的配置。
  * 
  * 和 ImportTasks 共用同一条校验链路，但有两处不同：允许任务列表为空
- * （用户在编辑框里把启动项全删了是正常操作），以及项目名/标签跟着编辑框走
- * （编辑框里显示了什么，保存后就该是什么）。
+ * （用户在编辑框里把启动项全删了是正常操作），以及项目名/描述/标签跟着编辑框走
+ * （编辑框里显示了什么，保存后就该是什么，包括把描述删空）。
  */
 export function SaveConfigJSON(id: string, raw: string): $CancellablePromise<config$0.ImportResult> {
     return $Call.ByID(1159892090, id, raw);

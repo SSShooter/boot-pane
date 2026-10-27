@@ -329,6 +329,24 @@ input {
   word-break: break-all;
 }
 
+/* 项目描述：一句话说明，可能为空。空时整行不渲染，不留空隙。 */
+.panel-desc {
+  margin-top: 5px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-dim);
+  /* 描述是模型从 README 提炼的，可能很长；限两行，别把头部撑高 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 有描述时路径往下让一点，否则两行字挤在一起 */
+.panel-desc + .panel-path {
+  margin-top: 5px;
+}
+
 .tag-row {
   display: flex;
   flex-wrap: wrap;

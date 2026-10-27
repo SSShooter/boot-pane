@@ -19,6 +19,7 @@ function task(partial: Partial<Task> & { id: string; label: string; command: str
 const uniAppProject: ResolvedProject = {
   id: "my-shop-3f2a1b",
   name: "my-shop",
+  description: "uni-app 商城，前端 h5 + 小程序 + 本地 mock 服务，三个常驻进程",
   path: "D:\\code\\my-shop",
   tags: ["uni-app", "vue3"],
   pinned: false,
@@ -59,6 +60,7 @@ const uniAppProject: ResolvedProject = {
 const backendProject: ResolvedProject = {
   id: "backend-api-88c04d",
   name: "backend-api",
+  description: "Go 写的内部 API，单进程，监听 8080",
   path: "D:\\code\\backend-api",
   tags: ["go"],
   pinned: false,
@@ -84,6 +86,8 @@ const backendProject: ResolvedProject = {
 const brokenProject: ResolvedProject = {
   id: "legacy-admin-7ab9e2",
   name: "legacy-admin",
+  // 故意留空：验证「没有描述时整行不渲染」，头部不该多出空白。
+  description: "",
   path: "E:\\old\\legacy-admin",
   tags: [],
   pinned: false,
@@ -110,6 +114,11 @@ const mockPrompt = `我要给下面这个项目配置 bootpane 的启动按钮�
 
 请在这个目录下读文件（package.json、go.mod、docker-compose.yml、Makefile、vite.config.*、
 .env*、各种 lockfile），命令必须来自你真正读到的内容，不要凭经验猜。
+
+【项目信息】
+输出的顶层还有一个 project 对象，用来描述项目本身：
+- name：项目名。优先用 package.json 的 name 或 README 标题，其次用目录名，不要自己起名。
+- description：一句话说清这个项目是什么、有哪几个常驻入口，40 字以内。
 
 （浏览器预览模式下这里是截断的示例 prompt，真实内容由 Go 侧生成）`;
 
@@ -196,7 +205,7 @@ export const mockApi = {
       JSON.stringify(
         {
           version: 1,
-          project: { name: p.name, tags: p.tags },
+          project: { name: p.name, description: p.description, tags: p.tags },
           tasks: p.tasks,
           pipelines: p.pipelines,
         },
@@ -222,6 +231,10 @@ export const mockApi = {
     p.tasks = parsed.tasks;
     if (Array.isArray(parsed?.pipelines)) p.pipelines = parsed.pipelines;
     if (parsed?.project?.name) p.name = parsed.project.name;
+    // 编辑框保存以编辑框为准，允许清空描述。
+    if (typeof parsed?.project?.description === "string") {
+      p.description = parsed.project.description;
+    }
     if (Array.isArray(parsed?.project?.tags)) p.tags = parsed.project.tags;
     return { ok: true, imported: p.tasks.length, issues: [] };
   },
