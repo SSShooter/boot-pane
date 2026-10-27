@@ -1022,6 +1022,83 @@ input {
   color: var(--text-faint);
 }
 
+/* ---------- 编辑配置弹窗 ---------- */
+
+/* JSON 编辑器比「生成配置」的说明型弹窗宽得多：一行 JSON 太长会频繁横向滚动。 */
+.dialog-wide {
+  width: min(880px, 100%);
+  /* 必须给死高度。只设 max-height 的话，容器高度仍由内容决定，
+     body 的 flex:1 没有可分配空间，textarea 会缩成一条。 */
+  height: min(740px, calc(100vh - 64px));
+}
+
+.editor-body {
+  flex: 1;
+  min-height: 0;
+}
+
+.editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.syntax-flag {
+  font-size: 11.5px;
+}
+
+.syntax-flag.ok {
+  color: var(--ok);
+}
+
+.syntax-flag.err {
+  color: var(--err);
+}
+
+.editor-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.json-editor {
+  flex: 1;
+  min-height: 340px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunk);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.65;
+  tab-size: 2;
+  outline: none;
+  resize: none;
+  /* 关掉换行：JSON 缩进层级靠横向滚动保留，折行会把结构读乱。 */
+  white-space: pre;
+  overflow: auto;
+}
+
+.json-editor:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.path-chip {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: bottom;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface-sunk);
+  border-radius: 4px;
+  padding: 1px 4px;
+  overflow-wrap: break-word;
+}
+
 /* ---------- Toast ---------- */
 
 .toast {

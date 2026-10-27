@@ -12,7 +12,8 @@ import type {
  */
 
 function task(partial: Partial<Task> & { id: string; label: string; command: string }): Task {
-  return { cwd: "", ...partial } as Task;
+  // 默认值放后面展开，否则 cwd 会插到 id 前面，预览里的 JSON 字段顺序很怪。
+  return { ...partial, cwd: partial.cwd ?? "" } as Task;
 }
 
 const uniAppProject: ResolvedProject = {
@@ -178,6 +179,48 @@ export const mockApi = {
       throw new Error("没找到 JSON 内容，请确认粘贴的是完整的配置");
     }
     throw new Error("浏览器预览模式：导入需要在桌面应用里操作");
+  },
+  /**
+   * 预览模式下的配置编辑：直接改内存里的 mock 项目。
+   *
+   * 不落盘、不做真实校验（工作目录是否存在这类判断在这里没有意义），
+   * 只保证「改完能看到卡片变化」这条链路是通的，方便调弹窗的交互和样式。
+   */
+  async configJson(id: string): Promise<string> {
+    const p = mockProjects.find((x) => x.id === id);
+    if (!p) throw new Error("项目不存在");
+    return (
+      JSON.stringify(
+        {
+          version: 1,
+          project: { name: p.name, tags: p.tags },
+          tasks: p.tasks,
+          pipelines: p.pipelines,
+        },
+        null,
+        2,
+      ) + "\n"
+    );
+  },
+  async saveConfigJson(id: string, raw: string): Promise<ImportResult> {
+    const p = mockProjects.find((x) => x.id === id);
+    if (!p) throw new Error("项目不存在");
+
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      return { ok: false, imported: 0, error: "JSON 格式有误：" + String(e), issues: [] };
+    }
+    if (!Array.isArray(parsed?.tasks)) {
+      return { ok: false, imported: 0, error: "tasks 必须是数组", issues: [] };
+    }
+
+    p.tasks = parsed.tasks;
+    if (Array.isArray(parsed?.pipelines)) p.pipelines = parsed.pipelines;
+    if (parsed?.project?.name) p.name = parsed.project.name;
+    if (Array.isArray(parsed?.project?.tags)) p.tags = parsed.project.tags;
+    return { ok: true, imported: p.tasks.length, issues: [] };
   },
   async listRunning() {
     return [...mockRuntimes.values()];

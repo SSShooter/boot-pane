@@ -393,6 +393,141 @@ func (s *Store) SetTasks(id string, tasks []Task, pipelines []Pipeline) error {
 	return ErrProjectNotFound
 }
 
+// ConfigSnapshot 返回当前生效配置的完整 JSON，供界面直接编辑。
+//
+// 项目内配置模式下返回仓库文件的原文——用户可能自己排过版，没必要先
+// 反序列化再重新序列化一遍把格式搅乱。文件不存在时给一份空骨架，
+// 让「切到项目内配置但还没建文件」的状态也能直接在界面上写出来。
+//
+// 全局模式则从注册表拼出同样结构的 ProjectFile。两种模式下编辑框长得一样，
+// 用户不用记「我现在改的到底是哪份文件」。
+func (s *Store) ConfigSnapshot(id string) (string, error) {
+	s.mu.RLock()
+	var p Project
+	found := false
+	for _, item := range s.ws.Projects {
+		if item.ID == id {
+			p, found = item, true
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if !found {
+		return "", ErrProjectNotFound
+	}
+
+	if p.UseRepoConfig {
+		raw, err := os.ReadFile(filepath.Join(p.Path, RepoConfigName))
+		switch {
+		case err == nil:
+			return string(raw), nil
+		case errors.Is(err, os.ErrNotExist):
+			return marshalProjectFile(ProjectFile{
+				Version: 1,
+				Project: Meta{Name: p.Name, Tags: p.Tags},
+			})
+		default:
+			return "", fmt.Errorf("读取 %s 失败: %w", RepoConfigName, err)
+		}
+	}
+
+	return marshalProjectFile(ProjectFile{
+		Version:   1,
+		Project:   Meta{Name: p.Name, Tags: p.Tags},
+		Tasks:     p.Tasks,
+		Pipelines: p.Pipelines,
+	})
+}
+
+// ApplyConfig 把解析好的配置写回当前生效的配置源。
+//
+// 全局模式写注册表，项目内模式写仓库里的 .bootpane.json——两条路走同一个入口，
+// 免得界面上的编辑和「导入」出现两套校验、两套行为。
+//
+// syncMeta 控制是否把 project 里的名称和标签一并写回注册表。导入路径传 false：
+// 大模型编的项目名不该覆盖用户在侧栏里认得的名字。
+func (s *Store) ApplyConfig(id string, pf ProjectFile, syncMeta bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	idx := -1
+	for i := range s.ws.Projects {
+		if s.ws.Projects[i].ID == id {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		return ErrProjectNotFound
+	}
+	p := &s.ws.Projects[idx]
+
+	if p.UseRepoConfig {
+		return writeRepoFile(p.Path, pf)
+	}
+
+	prevTasks, prevPipelines := p.Tasks, p.Pipelines
+	prevName, prevTags := p.Name, p.Tags
+
+	p.Tasks = pf.Tasks
+	p.Pipelines = pf.Pipelines
+	if syncMeta {
+		// 编辑框里显示了项目名和标签，保存后就该是这个值——否则编辑框是「假的」。
+		// 空名字回落到原值：注册表里的 Name 是侧栏显示用的，不能为空。
+		if name := strings.TrimSpace(pf.Project.Name); name != "" {
+			p.Name = name
+		}
+		p.Tags = pf.Project.Tags
+	}
+
+	if err := s.save(); err != nil {
+		p.Tasks, p.Pipelines = prevTasks, prevPipelines
+		p.Name, p.Tags = prevName, prevTags
+		return err
+	}
+	return nil
+}
+
+// marshalProjectFile 把配置序列化成界面上的编辑格式。
+//
+// Tasks 为 nil 时 JSON 会输出 null，编辑框里看到 "tasks": null 会让人以为
+// 配置坏了，所以统一补成 []。
+func marshalProjectFile(pf ProjectFile) (string, error) {
+	if pf.Version == 0 {
+		pf.Version = 1
+	}
+	if pf.Tasks == nil {
+		pf.Tasks = []Task{}
+	}
+	data, err := json.MarshalIndent(pf, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(data) + "\n", nil
+}
+
+// writeRepoFile 原子写入仓库里的 .bootpane.json。
+//
+// 先写临时文件再重命名：这个文件在用户的工作区里，很可能正被 git 或编辑器
+// 盯着，中途崩溃留下半截 JSON 比写失败更糟。
+func writeRepoFile(dir string, pf ProjectFile) error {
+	body, err := marshalProjectFile(pf)
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(dir, RepoConfigName)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
+		return fmt.Errorf("写入 %s 失败: %w", RepoConfigName, err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("写入 %s 失败: %w", RepoConfigName, err)
+	}
+	return nil
+}
+
 // normalizeTasks 给缺 label 的任务补上默认显示名。
 func normalizeTasks(in []Task) []Task {
 	out := make([]Task, 0, len(in))

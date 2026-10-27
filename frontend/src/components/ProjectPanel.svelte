@@ -63,6 +63,7 @@
       <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
         生成配置
       </button>
+      <button class="btn" onclick={() => app.openEditor(project.id)}>编辑配置</button>
       <button class="btn" onclick={() => app.openProjectDir(project.id)}>打开目录</button>
       <button class="btn btn-danger" onclick={confirmRemove}>移除</button>
     </div>
@@ -115,12 +116,13 @@
       <h2>这个项目还没有启动按钮</h2>
       <p>
         让 AI 读一遍仓库结构，自动生成一份配置——复制 prompt 到项目目录下用，
-        再把结果粘回来就行。也可以手动编辑全局注册表。
+        再把结果粘回来就行。也可以直接手写 JSON。
       </p>
       <div class="empty-actions">
         <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
           生成配置
         </button>
+        <button class="btn" onclick={() => app.openEditor(project.id)}>手写 JSON</button>
         <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
       </div>
     </div>

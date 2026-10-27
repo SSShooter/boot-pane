@@ -38,6 +38,16 @@ export function ConfigFilePath(): $CancellablePromise<string> {
 }
 
 /**
+ * ConfigJSON 返回当前生效配置的完整 JSON 文本，供界面直接编辑。
+ * 
+ * 返回的是「当前真正生效的那一份」：项目内配置模式读仓库文件原文，
+ * 全局模式从注册表拼出来。界面不需要知道区别。
+ */
+export function ConfigJSON(id: string): $CancellablePromise<string> {
+    return $Call.ByID(1383942991, id);
+}
+
+/**
  * GetProject 返回单个项目。
  */
 export function GetProject(id: string): $CancellablePromise<config$0.ResolvedProject> {
@@ -86,6 +96,19 @@ export function OpenProjectDir(id: string): $CancellablePromise<void> {
  */
 export function RemoveProject(id: string): $CancellablePromise<void> {
     return $Call.ByID(581203932, id);
+}
+
+/**
+ * SaveConfigJSON 保存界面上编辑过的配置。
+ * 
+ * 和 ImportTasks 共用同一条校验链路，但有两处不同：允许任务列表为空
+ * （用户在编辑框里把启动项全删了是正常操作），以及项目名/标签跟着编辑框走
+ * （编辑框里显示了什么，保存后就该是什么）。
+ */
+export function SaveConfigJSON(id: string, raw: string): $CancellablePromise<config$0.ImportResult> {
+    return $Call.ByID(1159892090, id, raw).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**

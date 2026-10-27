@@ -28,6 +28,10 @@ export interface Api {
   setStar(projectId: string, taskId: string, starred: boolean): Promise<void>;
   buildConfigPrompt(id: string): Promise<string>;
   importTasks(id: string, raw: string): Promise<ImportResult>;
+  /** 拉当前生效配置的完整 JSON 文本，供编辑框直接改。 */
+  configJson(id: string): Promise<string>;
+  /** 保存编辑过的配置。写入目标跟着项目的配置来源走。 */
+  saveConfigJson(id: string, raw: string): Promise<ImportResult>;
   listRunning(): Promise<Runtime[]>;
   startTask(projectId: string, taskId: string): Promise<void>;
   stopTask(projectId: string, taskId: string): Promise<void>;
@@ -49,6 +53,8 @@ const realApi: Api = {
   setStar: (projectId, taskId, starred) => ConfigService.SetStar(projectId, taskId, starred),
   buildConfigPrompt: (id) => ConfigService.BuildConfigPrompt(id),
   importTasks: (id, raw) => ConfigService.ImportTasks(id, raw),
+  configJson: (id) => ConfigService.ConfigJSON(id),
+  saveConfigJson: (id, raw) => ConfigService.SaveConfigJSON(id, raw),
   listRunning: () => ProcessService.ListRunning(),
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),

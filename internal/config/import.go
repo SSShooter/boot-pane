@@ -24,6 +24,25 @@ type ImportResult struct {
 // 模型经常会在 JSON 前后加解释文字，或者用 ```json 围栏包起来，
 // 所以这里不直接 Unmarshal 原文，先做一次容错提取。
 func ParseProjectFile(raw string) (ProjectFile, error) {
+	pf, err := parseProjectFile(raw)
+	if err != nil {
+		return ProjectFile{}, err
+	}
+	if len(pf.Tasks) == 0 {
+		return ProjectFile{}, errors.New("配置里没有任何 task")
+	}
+	return pf, nil
+}
+
+// ParseEditableConfig 解析界面编辑框里的内容。
+//
+// 和 ParseProjectFile 的唯一区别是允许任务列表为空：用户在编辑框里把启动项
+// 全删了是正常操作（清空重来），不能拿「导入空配置没意义」的规则挡住他。
+func ParseEditableConfig(raw string) (ProjectFile, error) {
+	return parseProjectFile(raw)
+}
+
+func parseProjectFile(raw string) (ProjectFile, error) {
 	body := extractJSONBlock(raw)
 	if body == "" {
 		return ProjectFile{}, errors.New("没找到 JSON 内容，请确认粘贴的是完整的配置")
@@ -31,9 +50,6 @@ func ParseProjectFile(raw string) (ProjectFile, error) {
 	var pf ProjectFile
 	if err := json.Unmarshal([]byte(body), &pf); err != nil {
 		return ProjectFile{}, fmt.Errorf("JSON 格式有误：%w", err)
-	}
-	if len(pf.Tasks) == 0 {
-		return ProjectFile{}, errors.New("配置里没有任何 task")
 	}
 	return pf, nil
 }
