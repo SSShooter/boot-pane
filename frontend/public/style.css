@@ -1362,6 +1362,59 @@ input {
   color: var(--text-faint);
 }
 
+/* ---------- 日志 ANSI 配色 ---------- */
+
+/*
+ * 终端 16 色。
+ *
+ * 不能照搬终端默认值：面板是浅色底，标准「白色」（37/97）和亮色系直接
+ * 落到白底上等于隐形，绿色 #00ff00 更是刺眼。这里按浅色主题重挑了一版，
+ * 保证每种颜色在白底上都能读，亮度关系仍然成立。
+ * 256 色和真彩色带的是绝对 RGB，没法走变量，由内联样式给。
+ */
+.log-body {
+  --ansi-0: #1c1917;
+  --ansi-1: #b91c1c;
+  --ansi-2: #15803d;
+  --ansi-3: #a16207;
+  --ansi-4: #1d4ed8;
+  --ansi-5: #9333ea;
+  --ansi-6: #0e7490;
+  --ansi-7: #57534e;
+  --ansi-8: #78716c;
+  --ansi-9: #dc2626;
+  --ansi-10: #16a34a;
+  --ansi-11: #ca8a04;
+  --ansi-12: #2563eb;
+  --ansi-13: #c026d3;
+  --ansi-14: #0891b2;
+  --ansi-15: #292524;
+}
+
+.log-body .ansi-bold {
+  font-weight: 600;
+}
+
+.log-body .ansi-dim {
+  opacity: 0.6;
+}
+
+.log-body .ansi-italic {
+  font-style: italic;
+}
+
+.log-body .ansi-underline {
+  text-decoration: underline;
+}
+
+.log-body .ansi-strike {
+  text-decoration: line-through;
+}
+
+.log-body .ansi-underline.ansi-strike {
+  text-decoration: underline line-through;
+}
+
 /* ---------- 端口占用标记 ---------- */
 
 /* 端口有人在听、但不是 bootpane 起的进程时显示。

@@ -5,7 +5,9 @@ import { Events } from "@wailsio/runtime";
 import { api, isPreview } from "./api";
 import { EVENT_LOG, EVENT_RUNTIME, EVENT_STATS, taskKey } from "./events";
 import type { LogPayload, StatsPayload } from "./events";
-import { MAX_LOG_CHARS, collapseCarriageReturns, stripAnsi } from "./format";
+import { MAX_LOG_CHARS } from "./format";
+import { countRuns, createAnsiState, mergeRuns, parseAnsiChunk, trimRuns } from "./ansi";
+import type { AnsiState, LogRun } from "./ansi";
 
 /** 把 Go 侧返回的 error 转成能直接展示的文案。 */
 function describeError(e: unknown): string {
@@ -72,11 +74,21 @@ export type ConfirmRequest = {
   danger?: boolean;
 };
 
+/** 一个任务的日志：带样式的片段 + 当前字符数（裁剪时要判断，别每次重算）。 */
+type LogBuffer = { runs: LogRun[]; chars: number };
+
+/** 空日志的稳定引用，避免每次派生都造新数组把渲染搅乱。 */
+const EMPTY_RUNS: LogRun[] = [];
+
 class AppState {
   projects = $state<ResolvedProject[]>([]);
   runtimes = $state<Record<string, Runtime>>({});
-  /** 每个任务已累积的日志文本，键是 `projectId/taskId`。 */
-  logs = $state<Record<string, string>>({});
+  /**
+   * 每个任务已累积的日志片段，键是 `projectId/taskId`。
+   *
+   * 用 raw 而不是深响应：片段数组只整体替换，深代理几万个节点得不偿失。
+   */
+  logs = $state.raw<Record<string, LogBuffer>>({});
   /**
    * 端口占用情况，键是端口号。
    *
@@ -125,8 +137,8 @@ class AppState {
 
   private confirmResolve: ((ok: boolean) => void) | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
-  /** 每个任务尚未收完的 ANSI 转义序列尾巴，跨事件块续接用。 */
-  private ansiCarry = new Map<string, string>();
+  /** 每个任务的 ANSI 解析状态（当前颜色、未收完的转义序列尾巴）。 */
+  private ansiStates = new Map<string, AnsiState>();
 
   selected = $derived(this.projects.find((p) => p.id === this.selectedId) ?? null);
 
@@ -165,8 +177,10 @@ class AppState {
     this.activeLog ? taskKey(this.activeLog.projectId, this.activeLog.taskId) : "",
   );
 
-  /** 当前日志面板要显示的文本。 */
-  activeLogText = $derived(this.activeLogKey ? (this.logs[this.activeLogKey] ?? "") : "");
+  /** 当前日志面板要渲染的片段。 */
+  activeLogRuns = $derived(
+    this.activeLogKey ? (this.logs[this.activeLogKey]?.runs ?? EMPTY_RUNS) : EMPTY_RUNS,
+  );
 
   /** 拉取项目列表，并在必要时修正当前选中项。 */
   async load(): Promise<void> {
@@ -297,33 +311,47 @@ class AppState {
   }
 
   /**
-   * 把原始终端字节流净化成可显示的文本。
+   * 取任务的 ANSI 解析状态。
    *
-   * 三步缺一不可：剥掉 ANSI（否则满屏 \x1b[32m）、压掉行内回车
-   * （否则 spinner 会刷出几十行）、再由调用方按上限裁剪。
+   * 状态挂在任务上而不是每块新建：颜色会跨数据块延续，未写完的转义序列
+   * 也要留到下一块才能接着解析。
    */
-  private sanitize(key: string, chunk: string): string {
-    const carry = this.ansiCarry.get(key) ?? "";
-    const { clean, carry: rest } = stripAnsi(carry + chunk);
-    this.ansiCarry.set(key, rest);
-    return collapseCarriageReturns(clean);
+  private ansiFor(key: string): AnsiState {
+    let state = this.ansiStates.get(key);
+    if (!state) {
+      state = createAnsiState();
+      this.ansiStates.set(key, state);
+    }
+    return state;
   }
 
-  /** 追加一段日志。 */
+  /** 追加一段日志：解析颜色、跨块合并、超上限时从头部裁掉。 */
   private appendLog(key: string, chunk: string): void {
     if (!chunk) return;
 
-    const text = this.sanitize(key, chunk);
-    if (!text) return;
+    const fresh = parseAnsiChunk(this.ansiFor(key), chunk);
+    if (fresh.length === 0) return;
 
-    let next = (this.logs[key] ?? "") + text;
-    if (next.length > MAX_LOG_CHARS) {
-      // 从换行处切，别把一行切成两半。
-      const cut = next.length - MAX_LOG_CHARS;
-      const nl = next.indexOf("\n", cut);
-      next = next.slice(nl >= 0 ? nl + 1 : cut);
-    }
-    this.logs[key] = next;
+    const prev = this.logs[key];
+    const runs = mergeRuns(prev?.runs ?? EMPTY_RUNS, fresh);
+    const chars = (prev?.chars ?? 0) + countRuns(fresh);
+    this.logs = { ...this.logs, [key]: trimRuns(runs, chars, MAX_LOG_CHARS) };
+  }
+
+  /** 整体替换某个任务的日志（从后端补一次历史输出时用）。 */
+  private replaceLog(key: string, runs: LogRun[]): void {
+    const chars = countRuns(runs);
+    this.logs = { ...this.logs, [key]: trimRuns(runs, chars, MAX_LOG_CHARS) };
+  }
+
+  /** 丢掉一个任务的日志和解析状态。清空、重启、换任务都走这里。 */
+  private resetLog(key: string): void {
+    this.ansiStates.delete(key);
+    if (!this.logs[key]) return;
+
+    const next = { ...this.logs };
+    delete next[key];
+    this.logs = next;
   }
 
   select(id: string): void {
@@ -439,14 +467,14 @@ class AppState {
     const key = taskKey(projectId, taskId);
 
     // 前端没攒到内容（比如窗口刚重载）时，从后端环形缓冲补一次历史。
-    if (this.logs[key]) return;
+    if (this.logs[key]?.chars) return;
     try {
       const text = await api.getTaskLog(projectId, taskId);
-      if (!text || this.logs[key]) return;
-      // 后端缓冲里同样是带 ANSI 的原始字节流，必须走同一套净化，
+      if (!text || this.logs[key]?.chars) return;
+      // 后端缓冲里同样是带 ANSI 的原始字节流，必须走同一套解析，
       // 否则「刚打开面板」和「跑了半天」看到的是两种格式。
-      this.ansiCarry.delete(key);
-      this.logs[key] = this.sanitize(key, text);
+      this.resetLog(key);
+      this.replaceLog(key, parseAnsiChunk(this.ansiFor(key), text));
     } catch {
       // 补不到就算了，后续事件来了照样能显示。
     }
@@ -458,9 +486,7 @@ class AppState {
 
   clearLog(): void {
     if (!this.activeLog) return;
-    const key = taskKey(this.activeLog.projectId, this.activeLog.taskId);
-    this.logs[key] = "";
-    this.ansiCarry.delete(key);
+    this.resetLog(taskKey(this.activeLog.projectId, this.activeLog.taskId));
   }
 
   async addProject(path: string): Promise<void> {
@@ -540,8 +566,7 @@ class AppState {
   async startTask(projectId: string, taskId: string, autoLog = true): Promise<boolean> {
     const key = taskKey(projectId, taskId);
     // 重新启动意味着新一轮输出，旧的留着只会让人误判。
-    this.logs[key] = "";
-    this.ansiCarry.delete(key);
+    this.resetLog(key);
 
     try {
       await api.startTask(projectId, taskId);
@@ -579,8 +604,7 @@ class AppState {
 
     this.restarting[key] = true;
     // 上一轮的日志会被新实例的输出取代，先清掉。
-    this.logs[key] = "";
-    this.ansiCarry.delete(key);
+    this.resetLog(key);
     this.notify("正在终止外部实例…");
 
     try {
