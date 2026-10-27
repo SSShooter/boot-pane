@@ -8,6 +8,6 @@ export {
     ProcessService
 };
 
-export {
+export type {
     RestartResult
 } from "./models.js";

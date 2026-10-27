@@ -103,13 +103,13 @@ export const mockProjects: ResolvedProject[] = [
   brokenProject,
 ];
 
-const mockPrompt = `我要给一个项目配置 bootpane 的启动按钮。
+const mockPrompt = `我要给下面这个项目配置 bootpane 的启动按钮。bootpane 是项目启动器，一个按钮对应一条长期运行的启动命令。
 
-【使用方式】请把这段内容放到项目根目录下使用：
+项目根目录：
     D:\\code\\my-shop
-在该目录里打开你的 AI 工具再贴这段话。
 
-只输出一个 json 代码块，不要任何解释文字。
+请在这个目录下读文件（package.json、go.mod、docker-compose.yml、Makefile、vite.config.*、
+.env*、各种 lockfile），命令必须来自你真正读到的内容，不要凭经验猜。
 
 （浏览器预览模式下这里是截断的示例 prompt，真实内容由 Go 侧生成）`;
 

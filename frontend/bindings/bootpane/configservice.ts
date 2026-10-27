@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -18,9 +18,7 @@ import * as config$0 from "./internal/config/models.js";
  * AddProject 把一个目录登记为项目。
  */
 export function AddProject(path: string): $CancellablePromise<config$0.ResolvedProject> {
-    return $Call.ByID(3359389383, path).then(($result: any) => {
-        return $$createType0($result);
-    });
+    return $Call.ByID(3359389383, path);
 }
 
 /**
@@ -51,9 +49,7 @@ export function ConfigJSON(id: string): $CancellablePromise<string> {
  * GetProject 返回单个项目。
  */
 export function GetProject(id: string): $CancellablePromise<config$0.ResolvedProject> {
-    return $Call.ByID(3485741446, id).then(($result: any) => {
-        return $$createType0($result);
-    });
+    return $Call.ByID(3485741446, id);
 }
 
 /**
@@ -63,18 +59,14 @@ export function GetProject(id: string): $CancellablePromise<config$0.ResolvedPro
  * 校验器，有阻断性问题就把问题原样返回，一条都不写。
  */
 export function ImportTasks(id: string, raw: string): $CancellablePromise<config$0.ImportResult> {
-    return $Call.ByID(986866364, id, raw).then(($result: any) => {
-        return $$createType1($result);
-    });
+    return $Call.ByID(986866364, id, raw);
 }
 
 /**
  * ListProjects 返回所有项目的合并视图（含校验结果）。
  */
-export function ListProjects(): $CancellablePromise<config$0.ResolvedProject[]> {
-    return $Call.ByID(2237226497).then(($result: any) => {
-        return $$createType2($result);
-    });
+export function ListProjects(): $CancellablePromise<config$0.ResolvedProject[] | null> {
+    return $Call.ByID(2237226497);
 }
 
 /**
@@ -106,9 +98,7 @@ export function RemoveProject(id: string): $CancellablePromise<void> {
  * （编辑框里显示了什么，保存后就该是什么）。
  */
 export function SaveConfigJSON(id: string, raw: string): $CancellablePromise<config$0.ImportResult> {
-    return $Call.ByID(1159892090, id, raw).then(($result: any) => {
-        return $$createType1($result);
-    });
+    return $Call.ByID(1159892090, id, raw);
 }
 
 /**
@@ -127,8 +117,3 @@ export function SetStar(projectID: string, taskID: string, starred: boolean): $C
 export function SetUseRepoConfig(id: string, enabled: boolean): $CancellablePromise<void> {
     return $Call.ByID(1420739874, id, enabled);
 }
-
-// Private type creation functions
-const $$createType0 = config$0.ResolvedProject.createFrom;
-const $$createType1 = config$0.ImportResult.createFrom;
-const $$createType2 = $Create.Array($$createType0);

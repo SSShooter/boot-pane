@@ -90,6 +90,15 @@ func Start(opts Options) (Session, error) {
 	}, nil
 }
 
+// ShellDescription 说明命令实际被哪个 shell 执行。
+//
+// 生成配置的 prompt 需要把这件事告诉大模型（cmd.exe 不支持 `FOO=bar cmd` 这种
+// 前缀赋值，也不认单引号），但业务层按约定不许判断 runtime.GOOS，所以由这里
+// 按平台给一句话，调用方直接用。
+func ShellDescription() string {
+	return "Windows 的 cmd.exe（/d /s /c）"
+}
+
 type conptySession struct {
 	hpc  uintptr
 	in   syscall.Handle // 写入端
