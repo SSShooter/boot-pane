@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=My Product
+Comment=A bootpane application
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/bootpane.exe %u
+Terminal=false
+Type=Application
+Icon=bootpane.exe
+Categories=Utility;
+StartupWMClass=bootpane.exe
+
+ 
