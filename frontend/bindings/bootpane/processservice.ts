@@ -12,7 +12,22 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as portinfo$0 from "./internal/portinfo/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as process$0 from "./internal/process/models.js";
+
+/**
+ * CheckPorts 批量查询端口占用。
+ * 
+ * 和 ListRunning 分开是有意的：任务状态只反映「bootpane 启动的那个进程」，
+ * 端口状态反映「服务是否活着」，两者会不一致。典型场景是启动脚本自己发现
+ * 「已在运行」就跳过退出——进程退了，但服务是活的，只看任务状态就会误报
+ * 「已停止」。
+ */
+export function CheckPorts(ports: number[] | null): $CancellablePromise<portinfo$0.Listener[] | null> {
+    return $Call.ByID(4176726652, ports);
+}
 
 /**
  * ListRunning 返回所有任务的运行快照。
@@ -40,4 +55,14 @@ export function StopProject(projectID: string): $CancellablePromise<void> {
  */
 export function StopTask(projectID: string, taskID: string): $CancellablePromise<void> {
     return $Call.ByID(3669038809, projectID, taskID);
+}
+
+/**
+ * TaskLog 返回某个任务已缓冲的日志全量。
+ * 
+ * 前端打开日志面板时先拉一次历史，之后靠 bootpane:log 事件增量追加。
+ * 用一次性拉取而不是把全量塞进事件，是因为事件通道承载不了几百 KB 的突发。
+ */
+export function TaskLog(projectID: string, taskID: string): $CancellablePromise<string> {
+    return $Call.ByID(513268349, projectID, taskID);
 }

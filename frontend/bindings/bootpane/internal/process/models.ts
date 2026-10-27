@@ -17,4 +17,19 @@ export interface Runtime {
     "startedAt": string;
     "exitCode": number;
     "lastError"?: string;
+
+    /**
+     * 整棵进程树，按全部核心归一化
+     */
+    "cpuPercent": number;
+
+    /**
+     * 整棵进程树工作集之和
+     */
+    "memoryBytes": number;
+
+    /**
+     * 当前活着的进程数
+     */
+    "processes": number;
 }

@@ -3,10 +3,14 @@
   import Sidebar from "./components/Sidebar.svelte";
   import ProjectPanel from "./components/ProjectPanel.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
+  import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
 
   onMount(() => {
-    app.load();
+    // 先订阅再拉数据，否则「拉取期间刚好有进程状态变化」会漏掉。
+    const disconnect = app.connect();
+    void app.load();
+    return disconnect;
   });
 </script>
 
@@ -38,6 +42,8 @@
 {#if app.generatorProject}
   <GenerateDialog project={app.generatorProject} onclose={() => app.closeGenerator()} />
 {/if}
+
+<LogPanel />
 
 {#if app.toast}
   <div class="toast" class:err={app.toastIsError} role="status" aria-live="polite">{app.toast}</div>

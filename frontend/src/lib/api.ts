@@ -4,6 +4,7 @@ import type {
   ResolvedProject,
 } from "../../bindings/bootpane/internal/config/models";
 import type { Runtime } from "../../bindings/bootpane/internal/process/models";
+import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
 import { mockApi } from "./devmock";
 
 /**
@@ -27,6 +28,10 @@ export interface Api {
   listRunning(): Promise<Runtime[]>;
   startTask(projectId: string, taskId: string): Promise<void>;
   stopTask(projectId: string, taskId: string): Promise<void>;
+  /** 拉某个任务已缓冲的日志全量，用于首次打开日志面板。 */
+  getTaskLog(projectId: string, taskId: string): Promise<string>;
+  /** 批量查询端口占用。和任务状态分开——端口活着不代表是 bootpane 起的。 */
+  checkPorts(ports: number[]): Promise<Listener[]>;
 }
 
 const realApi: Api = {
@@ -41,6 +46,8 @@ const realApi: Api = {
   listRunning: () => ProcessService.ListRunning(),
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),
+  getTaskLog: (projectId, taskId) => ProcessService.TaskLog(projectId, taskId),
+  checkPorts: (ports) => ProcessService.CheckPorts(ports),
 };
 
 export const api: Api = isPreview ? (mockApi as unknown as Api) : realApi;

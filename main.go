@@ -4,6 +4,7 @@ import (
 	"embed"
 	"log"
 	"os"
+	"sync/atomic"
 
 	"bootpane/internal/config"
 	"bootpane/internal/process"
@@ -28,7 +29,16 @@ func main() {
 		}
 	}
 
-	procMgr := process.NewManager()
+	// 事件出口用原子指针延迟绑定：进程管理器要先进 Services，而 app 得等
+	// application.New 才存在，中间这段时间采样协程可能已经跑起来了。
+	// 直接读 application.Get() 会和 New 里的赋值构成数据竞争，这里显式同步。
+	var appPtr atomic.Pointer[application.App]
+
+	procMgr := process.NewManager(func(event string, data any) {
+		if a := appPtr.Load(); a != nil {
+			a.Event.Emit(event, data)
+		}
+	})
 
 	app := application.New(application.Options{
 		Name:        "bootpane",
@@ -43,7 +53,10 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		// 退出前把整棵进程树清掉，不然关掉窗口后 node 还占着端口。
+		OnShutdown: procMgr.Shutdown,
 	})
+	appPtr.Store(app)
 
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "bootpane",

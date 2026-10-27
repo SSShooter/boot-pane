@@ -574,13 +574,41 @@ input {
   margin-top: 2px;
 }
 
+/* 把状态和按钮之间的空隙吃掉，状态靠左、按钮靠右。 */
+.foot-gap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- 资源占用徽章 ---------- */
+
+.usage {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.usage-cpu {
+  color: var(--text-dim);
+}
+
+.usage-proc {
+  color: var(--text-faint);
+}
+
 .state {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 11.5px;
   color: var(--text-faint);
-  flex: 1;
+  flex: none;
 }
 
 .state .dot {
@@ -906,4 +934,94 @@ input {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ---------- 日志抽屉 ---------- */
+
+.log-drawer {
+  position: fixed;
+  /* 272px 对齐 .app 的侧边栏列宽，让抽屉只覆盖主内容区。 */
+  left: 272px;
+  right: 0;
+  bottom: 0;
+  height: 320px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -10px 28px rgba(28, 25, 23, 0.08);
+  z-index: 20;
+}
+
+/* 抽屉展开时给内容区留出底部空间，避免最后一行按钮被盖住。 */
+.app:has(~ .log-drawer) .content {
+  padding-bottom: 320px;
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 7px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-sunk);
+}
+
+.log-head .state {
+  font-size: 11px;
+}
+
+.log-title {
+  font-weight: 500;
+  font-size: 12px;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px 14px;
+  background: var(--surface);
+}
+
+.log-body pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.62;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  tab-size: 2;
+}
+
+.log-empty {
+  padding: 10px 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* ---------- 端口占用标记 ---------- */
+
+/* 端口有人在听、但不是 bootpane 起的进程时显示。
+   用暖色是为了和「运行中」的绿色区分开：服务活着，但不是你在管的那个。 */
+.port-flag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: help;
 }

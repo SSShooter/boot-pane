@@ -100,6 +100,39 @@ const mockPrompt = `我要给一个项目配置 bootpane 的启动按钮。
 
 （浏览器预览模式下这里是截断的示例 prompt，真实内容由 Go 侧生成）`;
 
+/**
+ * 浏览器预览模式下的假运行状态。
+ *
+ * 只为了让 `npm run dev` 能看清运行中卡片的样式（CPU/内存徽章、日志面板），
+ * 不模拟真实的事件流——真要验行为还是得跑 wails3 dev。
+ */
+const mockRuntimes = new Map<string, any>();
+
+// 预置一个运行中的任务，这样 `npm run dev` 一打开就能看到资源徽章和日志面板，
+// 不用先点启动（预览模式下没有事件流，点了也不会真的跑起来）。
+mockRuntimes.set("my-shop-3f2a1b/web", {
+  projectId: "my-shop-3f2a1b",
+  taskId: "web",
+  state: "running",
+  pid: 24680,
+  ready: true,
+  startedAt: new Date().toISOString(),
+  exitCode: 0,
+  cpuPercent: 7.3,
+  memoryBytes: 214 * 1024 * 1024,
+  processes: 4,
+});
+
+const mockLogSample = `\u001b[2mVITE v8.2.4\u001b[22m  ready in 412 ms
+
+  \u001b[32m➜\u001b[39m  \u001b[1mLocal:\u001b[22m   \u001b[36mhttp://localhost:\u001b[1m5173\u001b[22m/\u001b[39m
+  \u001b[32m➜\u001b[39m  \u001b[1mNetwork:\u001b[22m \u001b[2muse --host to expose\u001b[39m\u001b[22m
+  \u001b[32m➜\u001b[39m  \u001b[1mpress \u001b[22m\u001b[2mh + enter\u001b[22m to show help
+
+\u001b[2m12:04:31\u001b[22m \u001b[36m[vite]\u001b[39m \u001b[32mhmr update\u001b[39m \u001b[2m/src/pages/index.vue\u001b[22m
+\u001b[2m12:04:38\u001b[22m \u001b[36m[vite]\u001b[39m \u001b[32mhmr update\u001b[39m \u001b[2m/src/components/TaskCard.vue\u001b[22m
+`;
+
 export const mockApi = {
   async listProjects(): Promise<ResolvedProject[]> {
     return mockProjects;
@@ -123,10 +156,44 @@ export const mockApi = {
     throw new Error("浏览器预览模式：导入需要在桌面应用里操作");
   },
   async listRunning() {
-    return [];
+    return [...mockRuntimes.values()];
   },
-  async startTask(): Promise<void> {
-    throw new Error("浏览器预览模式：进程管理不可用，请在 wails3 dev 下试");
+  async startTask(projectId: string, taskId: string): Promise<void> {
+    mockRuntimes.set(`${projectId}/${taskId}`, {
+      projectId,
+      taskId,
+      state: "running",
+      pid: 12345,
+      ready: true,
+      startedAt: new Date().toISOString(),
+      exitCode: 0,
+      cpuPercent: 12.4,
+      memoryBytes: 148 * 1024 * 1024,
+      processes: 3,
+    });
   },
-  async stopTask(): Promise<void> {},
+  async stopTask(projectId: string, taskId: string): Promise<void> {
+    mockRuntimes.delete(`${projectId}/${taskId}`);
+  },
+  async getTaskLog(): Promise<string> {
+    return mockLogSample;
+  },
+  /**
+   * 假端口占用：mock 服务的 3001 报成被外部 node.exe 占着，
+   * 用来预览「已退出 + 外部运行中」这种状态；5173 归 bootpane 自己管，不重复标记。
+   */
+  async checkPorts(ports: number[]) {
+    const occupied: Record<number, { pid: number; process: string }> = {
+      3001: { pid: 47772, process: "node.exe" },
+    };
+    return ports.map((port) => {
+      const hit = occupied[port];
+      return {
+        port,
+        listening: !!hit,
+        pid: hit?.pid ?? 0,
+        process: hit?.process ?? "",
+      };
+    });
+  },
 };
