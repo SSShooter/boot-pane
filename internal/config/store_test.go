@@ -469,7 +469,22 @@ func TestBuildPromptMentionsProjectPath(t *testing.T) {
 	if !strings.Contains(prompt, "waitFor") {
 		t.Error("prompt 里应说明 waitFor 字段")
 	}
+	if !strings.Contains(prompt, "env") {
+		t.Error("prompt 里应说明 env 字段，否则模型会把 PORT=xxx 写进 command")
+	}
 }
+
+// dependsOn / pipelines 目前没有执行方，prompt 里一出现就会让用户配出
+// 点了不生效的东西。等 M2 把调度接上再改这个测试。
+func TestBuildPromptOmitsUnimplementedFields(t *testing.T) {
+	prompt := BuildPrompt(ResolvedProject{Path: `D:\code\my-shop`})
+	for _, field := range []string{"dependsOn", "pipelines"} {
+		if strings.Contains(prompt, field) {
+			t.Errorf("prompt 不该提 %s：这个字段还没有执行方", field)
+		}
+	}
+}
+
 
 func TestValidateMissingDependency(t *testing.T) {
 	rp := ResolvedProject{

@@ -10,3 +10,10 @@ package pty
 func Start(opts Options) (Session, error) {
 	return nil, ErrNotImplemented
 }
+
+// ShellDescription 说明命令实际被哪个 shell 执行，供生成配置的 prompt 使用。
+//
+// 平台差异收敛在 pty 里，业务层不判断 runtime.GOOS。
+func ShellDescription() string {
+	return "POSIX sh（-c）"
+}
