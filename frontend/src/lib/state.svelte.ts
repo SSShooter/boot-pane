@@ -32,6 +32,14 @@ const RECONCILE_INTERVAL = 30_000;
  */
 const PORT_POLL_INTERVAL = 5_000;
 
+/**
+ * 「星标任务」聚合视图的伪项目 id。
+ *
+ * 侧栏里它是一个固定条目，选中后主区显示跨项目的星标卡片。
+ * 用保留字符串而不是再造一个真实项目，是因为它不对应任何磁盘目录。
+ */
+export const STARRED_VIEW = "__starred__";
+
 class AppState {
   projects = $state<ResolvedProject[]>([]);
   runtimes = $state<Record<string, Runtime>>({});
@@ -45,6 +53,13 @@ class AppState {
    * 就退出时，两者会不一致，界面必须如实分别表达。
    */
   ports = $state<Record<number, Listener>>({});
+  /**
+   * 正在重启的任务，键是 `projectId/taskId`。
+   *
+   * 重启要等端口真正释放（TerminateProcess 是异步的），后端会阻塞几秒，
+   * 这段时间按钮必须锁住，否则用户连点会反复杀进程。
+   */
+  restarting = $state<Record<string, boolean>>({});
   /** 当前打开日志面板的任务，null 表示面板关闭。 */
   activeLog = $state<{ projectId: string; taskId: string } | null>(null);
 
@@ -63,6 +78,23 @@ class AppState {
 
   selected = $derived(this.projects.find((p) => p.id === this.selectedId) ?? null);
 
+  /** 当前是不是停在星标聚合视图。 */
+  showStarred = $derived(this.selectedId === STARRED_VIEW);
+
+  /**
+   * 星标任务的跨项目扁平列表。
+   *
+   * 顺序跟着 projects 走（置顶 + 名称），组内保持配置里的任务顺序——
+   * 这样聚合视图里的相对次序和项目面板一致，不至于找不到卡片。
+   */
+  starredTasks = $derived(
+    this.projects.flatMap((project) =>
+      project.tasks
+        .filter((task) => (project.starredTaskIds ?? []).includes(task.id))
+        .map((task) => ({ project, task })),
+    ),
+  );
+
   generatorProject = $derived(
     this.projects.find((p) => p.id === this.generatorProjectId) ?? null,
   );
@@ -80,7 +112,11 @@ class AppState {
     try {
       const list = await api.listProjects();
       this.projects = list ?? [];
-      if (!this.projects.some((p) => p.id === this.selectedId)) {
+      // 星标视图不是真实项目，不能被「选中项不存在」的兜底逻辑踢回第一个项目。
+      if (
+        this.selectedId !== STARRED_VIEW &&
+        !this.projects.some((p) => p.id === this.selectedId)
+      ) {
         this.selectedId = this.projects[0]?.id ?? "";
       }
       await Promise.all([this.refreshRuntimes(), this.refreshPorts()]);
@@ -228,6 +264,80 @@ class AppState {
     return this.runtimes[taskKey(projectId, taskId)] ?? null;
   }
 
+  /** 任务是否正在跑（含启动中）。批量操作要靠它跳过已启动的。 */
+  isBusy(projectId: string, taskId: string): boolean {
+    const st = this.runtimeOf(projectId, taskId)?.state;
+    return st === "running" || st === "starting";
+  }
+
+  isStarred(projectId: string, taskId: string): boolean {
+    const p = this.projects.find((x) => x.id === projectId);
+    return (p?.starredTaskIds ?? []).includes(taskId);
+  }
+
+  /**
+   * 切换星标。
+   *
+   * 只改本地那一份 starredTaskIds，不整表重拉：重拉会让 projects 换新对象，
+   * 正在展开的日志面板和滚动位置都会跟着抖一下，点个星标不值当。
+   */
+  async toggleStar(projectId: string, taskId: string): Promise<void> {
+    const p = this.projects.find((x) => x.id === projectId);
+    if (!p) return;
+
+    const current = p.starredTaskIds ?? [];
+    const starred = !current.includes(taskId);
+    try {
+      await api.setStar(projectId, taskId, starred);
+      p.starredTaskIds = starred
+        ? [...current, taskId]
+        : current.filter((id) => id !== taskId);
+    } catch (e) {
+      this.notify(describeError(e), true);
+    }
+  }
+
+  /**
+   * 依次启动所有星标任务。
+   *
+   * 串行而不是并行：同时拉起一堆 dev server 会互相抢端口和 CPU，
+   * 失败时也分不清是哪一条炸的。
+   */
+  async startStarred(): Promise<void> {
+    const targets = this.starredTasks.filter(({ project, task }) => !this.isBusy(project.id, task.id));
+    if (targets.length === 0) {
+      this.notify("星标任务都已经在运行");
+      return;
+    }
+
+    let failed = 0;
+    for (const { project, task } of targets) {
+      if (!(await this.startTask(project.id, task.id))) failed++;
+    }
+    await this.refreshPorts();
+
+    const ok = targets.length - failed;
+    this.notify(
+      failed > 0 ? `已启动 ${ok} 个，${failed} 个失败` : `已依次启动 ${ok} 个星标任务`,
+      failed > 0,
+    );
+  }
+
+  /** 停止所有正在运行的星标任务。 */
+  async stopStarred(): Promise<void> {
+    const targets = this.starredTasks.filter(({ project, task }) => this.isBusy(project.id, task.id));
+    if (targets.length === 0) {
+      this.notify("没有正在运行的星标任务");
+      return;
+    }
+
+    for (const { project, task } of targets) {
+      await this.stopTask(project.id, task.id);
+    }
+    await this.refreshPorts();
+    this.notify(`已停止 ${targets.length} 个星标任务`);
+  }
+
   /** 打开某个任务的日志面板。 */
   async openLog(projectId: string, taskId: string): Promise<void> {
     this.activeLog = { projectId, taskId };
@@ -317,7 +427,8 @@ class AppState {
     this.generatorProjectId = null;
   }
 
-  async startTask(projectId: string, taskId: string): Promise<void> {
+  /** 启动任务，返回是否成功（批量启动要据此统计失败数）。 */
+  async startTask(projectId: string, taskId: string): Promise<boolean> {
     const key = taskKey(projectId, taskId);
     // 重新启动意味着新一轮输出，旧的留着只会让人误判。
     this.logs[key] = "";
@@ -326,8 +437,10 @@ class AppState {
     try {
       await api.startTask(projectId, taskId);
       await this.refreshRuntimes();
+      return true;
     } catch (e) {
       this.notify(describeError(e), true);
+      return false;
     }
   }
 
@@ -337,6 +450,38 @@ class AppState {
       await this.refreshRuntimes();
     } catch (e) {
       this.notify(describeError(e), true);
+    }
+  }
+
+  /**
+   * 重启任务：端口被外部实例占着时，先杀掉整棵进程树再启动。
+   *
+   * 只用于「外部运行中」的场景。正常停止的任务直接走 startTask 就行，
+   * 没必要多绕一层杀进程。
+   */
+  async restartTask(projectId: string, taskId: string): Promise<void> {
+    const key = taskKey(projectId, taskId);
+    if (this.restarting[key]) return;
+
+    this.restarting[key] = true;
+    // 上一轮的日志会被新实例的输出取代，先清掉。
+    this.logs[key] = "";
+    this.ansiCarry.delete(key);
+    this.notify("正在终止外部实例…");
+
+    try {
+      const res = await api.restartTask(projectId, taskId);
+      if (res?.ok) {
+        const n = res.killed?.length ?? 0;
+        this.notify(n > 0 ? `已终止 ${n} 个进程，正在重启` : "已重启");
+      } else {
+        this.notify(res?.message || "重启失败", true);
+      }
+    } catch (e) {
+      this.notify(describeError(e), true);
+    } finally {
+      this.restarting[key] = false;
+      await Promise.all([this.refreshRuntimes(), this.refreshPorts()]);
     }
   }
 

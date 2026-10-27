@@ -37,7 +37,14 @@ func NewStore() (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("无法定位用户配置目录: %w", err)
 	}
-	dir := filepath.Join(base, appDirName)
+	return NewStoreAt(filepath.Join(base, appDirName))
+}
+
+// NewStoreAt 在指定目录打开注册表。
+//
+// 主要给测试用：集成测试不能往用户真实的 %APPDATA% 里写东西。
+// 将来要支持自定义配置目录时也是从这里接。
+func NewStoreAt(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("创建配置目录失败: %w", err)
 	}
@@ -118,11 +125,12 @@ func (s *Store) Projects() []ResolvedProject {
 	s.mu.RLock()
 	list := make([]Project, len(s.ws.Projects))
 	copy(list, s.ws.Projects)
+	stars := append([]StarRef(nil), s.ws.Stars...)
 	s.mu.RUnlock()
 
 	out := make([]ResolvedProject, 0, len(list))
 	for _, p := range list {
-		out = append(out, s.Resolve(p))
+		out = append(out, s.resolve(p, stars))
 	}
 	sortProjects(out)
 	return out
@@ -134,7 +142,7 @@ func (s *Store) Get(id string) (ResolvedProject, error) {
 	defer s.mu.RUnlock()
 	for _, p := range s.ws.Projects {
 		if p.ID == id {
-			return s.Resolve(p), nil
+			return s.resolve(p, s.ws.Stars), nil
 		}
 	}
 	return ResolvedProject{}, ErrProjectNotFound
@@ -156,7 +164,7 @@ func (s *Store) Add(path string) (ResolvedProject, error) {
 	defer s.mu.Unlock()
 	for _, p := range s.ws.Projects {
 		if strings.EqualFold(filepath.Clean(p.Path), abs) {
-			return s.Resolve(p), nil
+			return s.resolve(p, s.ws.Stars), nil
 		}
 	}
 	p := Project{ID: makeID(abs), Name: filepath.Base(abs), Path: abs}
@@ -165,7 +173,7 @@ func (s *Store) Add(path string) (ResolvedProject, error) {
 		s.ws.Projects = s.ws.Projects[:len(s.ws.Projects)-1]
 		return ResolvedProject{}, err
 	}
-	return s.Resolve(p), nil
+	return s.resolve(p, s.ws.Stars), nil
 }
 
 // Remove 从注册表移除项目，不会碰磁盘上的仓库文件。
@@ -177,9 +185,76 @@ func (s *Store) Remove(id string) error {
 			continue
 		}
 		s.ws.Projects = append(s.ws.Projects[:i], s.ws.Projects[i+1:]...)
+		// 项目没了，它的星标也留着没意义——重新添加会生成同一个 ID，
+		// 旧星标会「诈尸」冒出来，跟用户刚移除的意图相反。
+		s.ws.Stars = dropStarsOf(s.ws.Stars, id)
 		return s.save()
 	}
 	return ErrProjectNotFound
+}
+
+// SetStar 设置某个任务的星标状态。幂等：重复设置不会产生重复记录，
+// 状态没变化时连盘都不写。
+func (s *Store) SetStar(projectID, taskID string, starred bool) error {
+	if projectID == "" || taskID == "" {
+		return errors.New("项目和任务 id 不能为空")
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// 只校验项目在不在，不校验任务：项目内配置模式下任务来自仓库文件，
+	// 这里看不到。任务级的悬空星标不会渲染也不会报错，用户重新导入配置后
+	// 还能自动恢复，比直接拒绝更宽松也更符合预期。
+	if !s.hasProject(projectID) {
+		return ErrProjectNotFound
+	}
+
+	idx := -1
+	for i, st := range s.ws.Stars {
+		if st.ProjectID == projectID && st.TaskID == taskID {
+			idx = i
+			break
+		}
+	}
+
+	switch {
+	case starred && idx >= 0:
+		return nil // 已经是星标，不写盘
+	case !starred && idx < 0:
+		return nil // 本来就不是星标，不写盘
+	}
+
+	prev := append([]StarRef(nil), s.ws.Stars...)
+	if starred {
+		s.ws.Stars = append(s.ws.Stars, StarRef{ProjectID: projectID, TaskID: taskID})
+	} else {
+		s.ws.Stars = append(s.ws.Stars[:idx], s.ws.Stars[idx+1:]...)
+	}
+	if err := s.save(); err != nil {
+		s.ws.Stars = prev // 写盘失败就回滚内存，别让内存和磁盘各说各话
+		return err
+	}
+	return nil
+}
+
+func (s *Store) hasProject(id string) bool {
+	for _, p := range s.ws.Projects {
+		if p.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func dropStarsOf(in []StarRef, projectID string) []StarRef {
+	out := make([]StarRef, 0, len(in))
+	for _, st := range in {
+		if st.ProjectID != projectID {
+			out = append(out, st)
+		}
+	}
+	return out
 }
 
 // Resolve 把项目解析成前端视图。
@@ -188,17 +263,37 @@ func (s *Store) Remove(id string) error {
 // 只有用户显式打开 UseRepoConfig，才会去读仓库里的 .bootpane.json，
 // 此时仓库配置完全取代全局配置，两者不叠加。
 func (s *Store) Resolve(p Project) ResolvedProject {
+	s.mu.RLock()
+	stars := append([]StarRef(nil), s.ws.Stars...)
+	s.mu.RUnlock()
+	return s.resolve(p, stars)
+}
+
+// resolve 是 Resolve 的无锁版本，供已经持锁的调用方（Projects/Get/Add）使用。
+//
+// 不能让持锁路径再调 Resolve 自己再去 RLock：RWMutex 的读锁虽然可重入，
+// 但只要中间排进一个等待中的写锁，第二次 RLock 就会死锁。
+func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 	rp := ResolvedProject{
-		ID:            p.ID,
-		Name:          p.Name,
-		Path:          p.Path,
-		Tags:          append([]string{}, p.Tags...),
-		Pinned:        p.Pinned,
-		UseRepoConfig: p.UseRepoConfig,
-		ConfigSource:  SourceGlobal,
-		Tasks:         []Task{},
-		Pipelines:     []Pipeline{},
-		Issues:        []Issue{},
+		ID:             p.ID,
+		Name:           p.Name,
+		Path:           p.Path,
+		Tags:           append([]string{}, p.Tags...),
+		Pinned:         p.Pinned,
+		UseRepoConfig:  p.UseRepoConfig,
+		ConfigSource:   SourceGlobal,
+		Tasks:          []Task{},
+		Pipelines:      []Pipeline{},
+		Issues:         []Issue{},
+		StarredTaskIDs: []string{},
+	}
+
+	// 星标按项目注入。任务已经不在配置里的悬空星标照样返回 id，
+	// 前端找不到对应卡片自然就不渲染，不需要在这里做存在性过滤。
+	for _, st := range stars {
+		if st.ProjectID == p.ID {
+			rp.StarredTaskIDs = append(rp.StarredTaskIDs, st.TaskID)
+		}
 	}
 
 	if fi, err := os.Stat(p.Path); err == nil && fi.IsDir() {

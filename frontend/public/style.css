@@ -17,6 +17,8 @@
   --warn-soft: #fffbeb;
   --err: #b91c1c;
   --err-soft: #fef2f2;
+  --star: #d97706;
+  --star-ink: #b45309;
   --radius: 10px;
   --radius-sm: 7px;
   --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, monospace;
@@ -458,9 +460,12 @@ input {
   background: var(--border);
 }
 
+/* 最小轨道宽度由 258px 提到 320px。
+   卡片底部一行「状态 + CPU/内存 + 日志 + 停止」实测要 ~300px 才排得开，
+   258px 时必然挤爆或换行。min(…, 100%) 保证窄容器下不会撑出横向滚动。 */
 .task-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 10px;
 }
 
@@ -492,6 +497,91 @@ input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ---------- 星标 ---------- */
+
+/* 星标按钮常驻占位但默认透明，卡片 hover 才显形，
+   免得一屏卡片右侧挂满星星。用 opacity 而不是 display，
+   否则显隐会让标题可用宽度变化、文字省略号位置跟着跳。 */
+.star-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.task-card:hover .star-btn,
+.star-btn:focus-visible,
+.star-btn.is-on {
+  opacity: 1;
+}
+
+.star-btn:hover {
+  background: var(--surface-sunk);
+  color: var(--text-dim);
+}
+
+/* 已星标用琥珀色而不是主色蓝：它是状态不是动作，
+   跟旁边的「启动/停止」按钮抢同一个视觉层级会让人误以为也是操作。 */
+.star-btn.is-on {
+  color: var(--star);
+}
+
+.star-btn.is-on:hover {
+  color: var(--star-ink);
+}
+
+/* 聚合视图里标识任务来自哪个项目。名字可能很长，压到 45% 宽就省略，
+   不能让它把任务标题挤没。 */
+.proj-badge {
+  flex: 0 1 auto;
+  max-width: 45%;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+  line-height: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.count-chip {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-sunk);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  line-height: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.star-glyph {
+  flex: none;
+  color: var(--star);
+}
+
+/* 侧栏里星标条目和项目列表之间需要一条硬分隔，
+   否则它读起来像「第一个项目」。 */
+.rail-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 10px 8px;
+}
+
+/* 聚合视图没有分组标题，靠这 18px 和头部拉开距离。 */
+.starred-grid {
+  margin-top: 18px;
 }
 
 .title-row {
@@ -543,6 +633,9 @@ input {
   font-size: 11.5px;
 }
 
+/* 命令行优先在空格处断行；只有某个 token 单独一行都放不下时才拆字符。
+   注意用 break-word 而不是 break-all：break-all 会把每个字符都当断点，
+   于是出现 ExecutionP / olicy、ps / 1 这种词中间硬断。 */
 .task-cmd {
   font-family: var(--mono);
   font-size: 11.5px;
@@ -550,7 +643,8 @@ input {
   background: var(--surface-sunk);
   border-radius: 5px;
   padding: 5px 7px;
-  word-break: break-all;
+  overflow-wrap: break-word;
+  word-break: normal;
   line-height: 1.5;
 }
 
@@ -567,14 +661,27 @@ input {
   color: var(--text-dim);
 }
 
+/* 底部一行固定不换行。
+   换行是错的：状态文字长度一变（运行中 / 等待就绪 / 已退出），按钮组就在
+   两行之间来回跳。正确做法是按钮固定靠右不动，让状态文字自己收缩省略。 */
 .task-foot {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   margin-top: 2px;
 }
 
-/* 把状态和按钮之间的空隙吃掉，状态靠左、按钮靠右。 */
+/* 按钮组整体靠右，永远不被拆散、不参与收缩。 */
+.foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
+}
+
+/* 通用撑杆：把左右两组元素顶到两端。日志抽屉头部还在用。 */
 .foot-gap {
   flex: 1;
   min-width: 0;
@@ -602,16 +709,27 @@ input {
   color: var(--text-faint);
 }
 
+/* 失败原因可能很长，必须可压缩 + 省略号，否则会把右侧按钮顶出卡片。
+   注意：flex 容器上的 text-overflow 对裸文本节点无效，文字要包在 .state-text 里。 */
 .state {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 11.5px;
   color: var(--text-faint);
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.state-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .state .dot {
+  flex: none;
   width: 5px;
   height: 5px;
 }

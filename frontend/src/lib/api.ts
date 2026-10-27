@@ -5,6 +5,7 @@ import type {
 } from "../../bindings/bootpane/internal/config/models";
 import type { Runtime } from "../../bindings/bootpane/internal/process/models";
 import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
+import type { RestartResult } from "../../bindings/bootpane/models";
 import { mockApi } from "./devmock";
 
 /**
@@ -23,6 +24,8 @@ export interface Api {
   openProjectDir(id: string): Promise<void>;
   openConfigDir(): Promise<void>;
   setUseRepoConfig(id: string, enabled: boolean): Promise<void>;
+  /** 设置任务星标。只写本机注册表，不碰仓库配置。 */
+  setStar(projectId: string, taskId: string, starred: boolean): Promise<void>;
   buildConfigPrompt(id: string): Promise<string>;
   importTasks(id: string, raw: string): Promise<ImportResult>;
   listRunning(): Promise<Runtime[]>;
@@ -32,6 +35,8 @@ export interface Api {
   getTaskLog(projectId: string, taskId: string): Promise<string>;
   /** 批量查询端口占用。和任务状态分开——端口活着不代表是 bootpane 起的。 */
   checkPorts(ports: number[]): Promise<Listener[]>;
+  /** 重启任务：端口被外部进程占着时先杀掉整棵进程树再启动。 */
+  restartTask(projectId: string, taskId: string): Promise<RestartResult>;
 }
 
 const realApi: Api = {
@@ -41,6 +46,7 @@ const realApi: Api = {
   openProjectDir: (id) => ConfigService.OpenProjectDir(id),
   openConfigDir: () => ConfigService.OpenConfigDir(),
   setUseRepoConfig: (id, enabled) => ConfigService.SetUseRepoConfig(id, enabled),
+  setStar: (projectId, taskId, starred) => ConfigService.SetStar(projectId, taskId, starred),
   buildConfigPrompt: (id) => ConfigService.BuildConfigPrompt(id),
   importTasks: (id, raw) => ConfigService.ImportTasks(id, raw),
   listRunning: () => ProcessService.ListRunning(),
@@ -48,6 +54,7 @@ const realApi: Api = {
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),
   getTaskLog: (projectId, taskId) => ProcessService.TaskLog(projectId, taskId),
   checkPorts: (ports) => ProcessService.CheckPorts(ports),
+  restartTask: (projectId, taskId) => ProcessService.RestartTask(projectId, taskId),
 };
 
 export const api: Api = isPreview ? (mockApi as unknown as Api) : realApi;

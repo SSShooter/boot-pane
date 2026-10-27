@@ -101,6 +101,121 @@ func TestResolveErrorsWhenRepoConfigMissing(t *testing.T) {
 	}
 }
 
+// 星标必须落在全局注册表里，重启应用后还在。
+func TestSetStarPersists(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{
+		ID:    "p1",
+		Path:  t.TempDir(),
+		Tasks: []Task{{ID: "web", Label: "前端", Command: "pnpm dev"}},
+	}}
+
+	if err := s.SetStar("p1", "web", true); err != nil {
+		t.Fatal(err)
+	}
+
+	rp, err := s.Get("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rp.StarredTaskIDs) != 1 || rp.StarredTaskIDs[0] != "web" {
+		t.Fatalf("视图里应带上星标 id，得到 %v", rp.StarredTaskIDs)
+	}
+
+	reloaded := &Store{dir: s.dir}
+	if err := reloaded.load(); err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.ws.Stars) != 1 {
+		t.Fatalf("星标没有落盘，得到 %+v", reloaded.ws.Stars)
+	}
+	if got := reloaded.ws.Stars[0]; got.ProjectID != "p1" || got.TaskID != "web" {
+		t.Errorf("落盘的星标内容不对：%+v", got)
+	}
+}
+
+// 重复设置同一个状态不该堆出多条记录，否则列表里会出现重复卡片。
+func TestSetStarIsIdempotent(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Path: t.TempDir()}}
+
+	for i := 0; i < 3; i++ {
+		if err := s.SetStar("p1", "web", true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(s.ws.Stars) != 1 {
+		t.Fatalf("重复星标应只有一条记录，得到 %d 条", len(s.ws.Stars))
+	}
+
+	for i := 0; i < 3; i++ {
+		if err := s.SetStar("p1", "web", false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(s.ws.Stars) != 0 {
+		t.Fatalf("取消星标后应为空，得到 %+v", s.ws.Stars)
+	}
+}
+
+func TestSetStarRejectsUnknownProject(t *testing.T) {
+	s := newStore(t)
+	if err := s.SetStar("nope", "web", true); err == nil {
+		t.Error("项目不存在时应当报错")
+	}
+	if len(s.ws.Stars) != 0 {
+		t.Errorf("失败的调用不该留下星标，得到 %+v", s.ws.Stars)
+	}
+}
+
+// 移除项目要连带清掉它的星标：重新添加会生成同一个 ID，
+// 不清就会让旧星标诈尸冒出来。
+func TestRemoveDropsStars(t *testing.T) {
+	s := newStore(t)
+	s.ws.Projects = []Project{
+		{ID: "p1", Path: t.TempDir()},
+		{ID: "p2", Path: t.TempDir()},
+	}
+	if err := s.SetStar("p1", "web", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetStar("p2", "api", true); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Remove("p1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(s.ws.Stars) != 1 || s.ws.Stars[0].ProjectID != "p2" {
+		t.Fatalf("只应清掉 p1 的星标，得到 %+v", s.ws.Stars)
+	}
+}
+
+// 项目内配置模式下任务来自仓库文件，星标照样要能设——
+// 这正是星标不塞进 Task 的原因。
+func TestSetStarWorksInRepoConfigMode(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoConfig(t, repo, repoBody)
+
+	s := newStore(t)
+	s.ws.Projects = []Project{{ID: "p1", Path: repo, UseRepoConfig: true}}
+
+	if err := s.SetStar("p1", "api", true); err != nil {
+		t.Fatal(err)
+	}
+
+	rp, err := s.Get("p1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rp.ConfigSource != SourceRepo {
+		t.Fatalf("前提是项目内配置模式，得到 %q", rp.ConfigSource)
+	}
+	if len(rp.StarredTaskIDs) != 1 || rp.StarredTaskIDs[0] != "api" {
+		t.Fatalf("仓库里的任务也应能星标，得到 %v", rp.StarredTaskIDs)
+	}
+}
+
 func TestSetUseRepoConfigPersists(t *testing.T) {
 	repo := t.TempDir()
 	s := newStore(t)

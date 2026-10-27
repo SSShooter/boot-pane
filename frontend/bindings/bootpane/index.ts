@@ -7,3 +7,7 @@ export {
     ConfigService,
     ProcessService
 };
+
+export {
+    RestartResult
+} from "./models.js";

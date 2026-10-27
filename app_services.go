@@ -2,12 +2,15 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 	"runtime"
+	"time"
 
 	"bootpane/internal/config"
 	"bootpane/internal/portinfo"
 	"bootpane/internal/process"
+	"bootpane/internal/prockill"
 )
 
 // ConfigService 向前端暴露配置读写能力。
@@ -62,6 +65,14 @@ func (c *ConfigService) ConfigFilePath() string {
 // SetUseRepoConfig 切换某个项目的配置来源：全局注册表 ↔ 仓库内 .bootpane.json。
 func (c *ConfigService) SetUseRepoConfig(id string, enabled bool) error {
 	return c.store.SetUseRepoConfig(id, enabled)
+}
+
+// SetStar 设置任务星标。
+//
+// 星标只落在本机全局注册表里，不写进仓库配置——它是个人使用习惯，
+// 不该跟着 .bootpane.json 提交给团队。
+func (c *ConfigService) SetStar(projectID, taskID string, starred bool) error {
+	return c.store.SetStar(projectID, taskID, starred)
 }
 
 // BuildConfigPrompt 生成一段可以贴给任意大模型的 prompt，用来产出启动配置。
@@ -145,6 +156,112 @@ func (p *ProcessService) TaskLog(projectID, taskID string) string {
 // 「已停止」。
 func (p *ProcessService) CheckPorts(ports []int) []portinfo.Listener {
 	return portinfo.LookupAll(ports)
+}
+
+// RestartResult 是一次重启操作的结果。
+//
+// 和 ImportResult 一样用返回值而不是 error 承载业务结果：Wails 的 (T, error)
+// 约定下 error 非空时 T 会被丢弃，前端就拿不到「杀了哪些进程」这些细节。
+type RestartResult struct {
+	OK      bool     `json:"ok"`
+	Killed  []string `json:"killed"` // 形如 "node.exe (PID 47772)"
+	Message string   `json:"message"`
+}
+
+// 等待端口释放的上限。
+//
+// TerminateProcess 是异步的：调用返回时进程可能还在退出流程里，端口没断。
+// 直接启动会撞上 EADDRINUSE，所以必须等端口真的空出来。
+const portReleaseTimeout = 8 * time.Second
+
+// RestartTask 重启任务：端口被外部进程占着时，先杀掉那棵进程树再启动。
+//
+// 这里的「外部进程」完全不在我们的 Job Object 里，只能靠端口反查 PID
+// 再用 Toolhelp 摸父子关系。杀之前前端已经做过二次确认。
+func (p *ProcessService) RestartTask(projectID, taskID string) RestartResult {
+	proj, err := p.store.Get(projectID)
+	if err != nil {
+		return RestartResult{Message: err.Error()}
+	}
+
+	var task *config.Task
+	for i := range proj.Tasks {
+		if proj.Tasks[i].ID == taskID {
+			task = &proj.Tasks[i]
+			break
+		}
+	}
+	if task == nil {
+		return RestartResult{Message: fmt.Sprintf("任务 %q 不存在", taskID)}
+	}
+
+	// 只有配了 waitFor.port 的任务才可能被判定成「外部运行中」，
+	// 没有端口就没有「占着端口的外部实例」这个概念。
+	port := 0
+	if task.WaitFor != nil && task.WaitFor.Type == config.WaitPort {
+		port = task.WaitFor.Port
+	}
+	if port <= 0 {
+		return RestartResult{Message: "该任务没有配置端口，无法判断外部实例"}
+	}
+
+	var killed []string
+	if listener := portinfo.Lookup(port); listener.Listening && listener.PID > 0 {
+		victims, killErr := prockill.Kill(listener.PID)
+		if killErr != nil {
+			return RestartResult{
+				Message: fmt.Sprintf("终止 %s 失败：%v", describeListener(listener), killErr),
+			}
+		}
+		for _, v := range victims {
+			killed = append(killed, describeKilled(v))
+		}
+		if err := waitPortRelease(port, portReleaseTimeout); err != nil {
+			return RestartResult{
+				Killed:  killed,
+				Message: fmt.Sprintf("已终止 %d 个进程，但端口 %d 仍被占用", len(killed), port),
+			}
+		}
+	}
+
+	if err := p.StartTask(projectID, taskID); err != nil {
+		return RestartResult{Killed: killed, Message: err.Error()}
+	}
+
+	if len(killed) == 0 {
+		return RestartResult{OK: true, Message: "已启动"}
+	}
+	return RestartResult{OK: true, Killed: killed, Message: "已终止外部实例并重新启动"}
+}
+
+// waitPortRelease 轮询到端口不再能建立连接。
+func waitPortRelease(port int, timeout time.Duration) error {
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	deadline := time.Now().Add(timeout)
+
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+		if err != nil {
+			return nil // 连不上就说明已经释放了
+		}
+		_ = conn.Close()
+		time.Sleep(100 * time.Millisecond)
+	}
+	return fmt.Errorf("端口 %d 在 %v 内没有释放", port, timeout)
+}
+
+func describeListener(l portinfo.Listener) string {
+	if l.Process != "" {
+		return fmt.Sprintf("%s（PID %d）", l.Process, l.PID)
+	}
+	return fmt.Sprintf("PID %d", l.PID)
+}
+
+func describeKilled(k prockill.Killed) string {
+	if k.Name != "" {
+		return fmt.Sprintf("%s (PID %d)", k.Name, k.PID)
+	}
+	return fmt.Sprintf("PID %d", k.PID)
 }
 
 // StartTask 启动项目下的某个任务。

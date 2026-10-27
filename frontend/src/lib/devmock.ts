@@ -52,6 +52,7 @@ const uniAppProject: ResolvedProject = {
   ],
   pipelines: [{ id: "all", label: "全启", tasks: ["web", "mp-weixin"], mode: "serial" }],
   issues: [],
+  starredTaskIds: ["web", "mock"],
 } as ResolvedProject;
 
 const backendProject: ResolvedProject = {
@@ -64,9 +65,19 @@ const backendProject: ResolvedProject = {
   useRepoConfig: false,
   configSource: "global",
   hasRepoConfig: false,
-  tasks: [],
+  tasks: [
+    task({
+      id: "serve",
+      label: "启动 API",
+      group: "服务",
+      command: "go run ./cmd/api",
+      waitFor: { type: "port", port: 8080 } as any,
+    }),
+  ],
   pipelines: [],
   issues: [],
+  // 故意跨项目预置一个星标，用来预览聚合视图里的项目徽章。
+  starredTaskIds: ["serve"],
 } as ResolvedProject;
 
 const brokenProject: ResolvedProject = {
@@ -82,6 +93,7 @@ const brokenProject: ResolvedProject = {
   tasks: [],
   pipelines: [],
   issues: [{ level: "error", message: "项目目录不存在或不可访问" }],
+  starredTaskIds: [],
 } as ResolvedProject;
 
 export const mockProjects: ResolvedProject[] = [
@@ -133,6 +145,11 @@ const mockLogSample = `\u001b[2mVITE v8.2.4\u001b[22m  ready in 412 ms
 \u001b[2m12:04:38\u001b[22m \u001b[36m[vite]\u001b[39m \u001b[32mhmr update\u001b[39m \u001b[2m/src/components/TaskCard.vue\u001b[22m
 `;
 
+/** 预览模式下被「外部进程」占着的端口，重启后会从这里移除。 */
+const mockOccupied: Record<number, { pid: number; process: string }> = {
+  3001: { pid: 47772, process: "node.exe" },
+};
+
 export const mockApi = {
   async listProjects(): Promise<ResolvedProject[]> {
     return mockProjects;
@@ -145,6 +162,13 @@ export const mockApi = {
   async openConfigDir(): Promise<void> {},
   async setUseRepoConfig(): Promise<void> {
     throw new Error("浏览器预览模式：无法切换配置来源");
+  },
+  /** 假星标：直接改内存里的 mock 数据，刷新页面就回到预置状态。 */
+  async setStar(projectId: string, taskId: string, starred: boolean): Promise<void> {
+    const p = mockProjects.find((x) => x.id === projectId);
+    if (!p) return;
+    const ids = p.starredTaskIds.filter((id) => id !== taskId);
+    p.starredTaskIds = starred ? [...ids, taskId] : ids;
   },
   async buildConfigPrompt(): Promise<string> {
     return mockPrompt;
@@ -183,11 +207,8 @@ export const mockApi = {
    * 用来预览「已退出 + 外部运行中」这种状态；5173 归 bootpane 自己管，不重复标记。
    */
   async checkPorts(ports: number[]) {
-    const occupied: Record<number, { pid: number; process: string }> = {
-      3001: { pid: 47772, process: "node.exe" },
-    };
     return ports.map((port) => {
-      const hit = occupied[port];
+      const hit = mockOccupied[port];
       return {
         port,
         listening: !!hit,
@@ -195,5 +216,26 @@ export const mockApi = {
         process: hit?.process ?? "",
       };
     });
+  },
+  /** 假重启：把被占的 3001 让出来，然后当成自己启动的实例。 */
+  async restartTask(projectId: string, taskId: string) {
+    delete mockOccupied[3001];
+    mockRuntimes.set(`${projectId}/${taskId}`, {
+      projectId,
+      taskId,
+      state: "running",
+      pid: 31337,
+      ready: true,
+      startedAt: new Date().toISOString(),
+      exitCode: 0,
+      cpuPercent: 4.1,
+      memoryBytes: 96 * 1024 * 1024,
+      processes: 2,
+    });
+    return {
+      ok: true,
+      killed: ["node.exe (PID 47772)"],
+      message: "已终止外部实例并重新启动",
+    };
   },
 };

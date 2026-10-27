@@ -3,7 +3,13 @@
   import { app } from "../lib/state.svelte";
   import { formatBytes, formatPercent } from "../lib/format";
 
-  let { projectId, task }: { projectId: string; task: Task } = $props();
+  let {
+    projectId,
+    task,
+    showProject = "",
+  }: { projectId: string; task: Task; showProject?: string } = $props();
+
+  const starred = $derived(app.isStarred(projectId, task.id));
 
   const rt = $derived(app.runtimeOf(projectId, task.id));
   const state = $derived(rt?.state ?? "idle");
@@ -26,8 +32,28 @@
     const who = portInfo.process
       ? `${portInfo.process}（PID ${portInfo.pid}）`
       : `PID ${portInfo.pid}`;
-    return `端口 ${portInfo.port} 正被 ${who} 占用，不是 bootpane 启动的。点「启动」时脚本可能会自己判断并跳过。`;
+    return `端口 ${portInfo.port} 正被 ${who} 占用，不是 bootpane 启动的。点「重启」会先终止它再重新启动。`;
   });
+
+  const restarting = $derived(!!app.restarting[`${projectId}/${task.id}`]);
+
+  /**
+   * 重启外部实例前必须二次确认。
+   *
+   * 那个进程可能是用户在另一个终端里手动起的，里面有未保存的状态——
+   * 我们没有任何办法知道，只能把风险摆到明面上让他自己决定。
+   */
+  function confirmRestart(): void {
+    const info = portInfo;
+    if (!info?.listening) return;
+
+    const who = info.process ? `${info.process}（PID ${info.pid}）` : `PID ${info.pid}`;
+    const ok = confirm(
+      `将终止占用端口 ${info.port} 的 ${who} 及其所有子进程，然后重新启动「${task.label}」。\n\n` +
+        `如果那是你手动启动的实例，其中未保存的状态会丢失。确定继续？`,
+    );
+    if (ok) void app.restartTask(projectId, task.id);
+  }
 
   const stateText = $derived.by(() => {
     switch (state) {
@@ -57,7 +83,30 @@
 
 <div class="task-card">
   <div class="task-top">
+    {#if showProject}
+      <span class="proj-badge" title={`来自项目 ${showProject}`}>{showProject}</span>
+    {/if}
     <span class="task-label" title={task.label}>{task.label}</span>
+    <button
+      class="star-btn"
+      class:is-on={starred}
+      title={starred ? "取消星标" : "加星标（可在「星标任务」里统一管理）"}
+      aria-label={starred ? "取消星标" : "加星标"}
+      aria-pressed={starred}
+      onclick={() => app.toggleStar(projectId, task.id)}
+    >
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill={starred ? "currentColor" : "none"}
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linejoin="round"
+      >
+        <path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z" />
+      </svg>
+    </button>
   </div>
 
   <div class="task-cmd" title={task.command}>{task.command}</div>
@@ -77,9 +126,9 @@
   {/if}
 
   <div class="task-foot">
-    <span class="state {state}">
+    <span class="state {state}" title={state === "failed" ? stateText : undefined}>
       <span class="dot"></span>
-      {stateText}
+      <span class="state-text">{stateText}</span>
     </span>
 
     {#if foreignPort}
@@ -94,22 +143,26 @@
       </span>
     {/if}
 
-    <span class="foot-gap"></span>
-
-    <button
-      class="btn btn-ghost btn-run"
-      title="查看运行日志"
-      onclick={() => app.openLog(projectId, task.id)}
-    >
-      日志
-    </button>
-
-    {#if busy}
-      <button class="btn btn-run" onclick={() => app.stopTask(projectId, task.id)}>停止</button>
-    {:else}
-      <button class="btn btn-primary btn-run" onclick={() => app.startTask(projectId, task.id)}>
-        启动
+    <span class="foot-actions">
+      <button
+        class="btn btn-ghost btn-run"
+        title="查看运行日志"
+        onclick={() => app.openLog(projectId, task.id)}
+      >
+        日志
       </button>
-    {/if}
+
+      {#if busy}
+        <button class="btn btn-run" onclick={() => app.stopTask(projectId, task.id)}>停止</button>
+      {:else if foreignPort}
+        <button class="btn btn-primary btn-run" disabled={restarting} onclick={confirmRestart}>
+          {restarting ? "重启中…" : "重启"}
+        </button>
+      {:else}
+        <button class="btn btn-primary btn-run" onclick={() => app.startTask(projectId, task.id)}>
+          启动
+        </button>
+      {/if}
+    </span>
   </div>
 </div>
