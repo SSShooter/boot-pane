@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -16,6 +16,10 @@ import * as portinfo$0 from "./internal/portinfo/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as process$0 from "./internal/process/models.js";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
 
 /**
  * CheckPorts 批量查询端口占用。
@@ -25,15 +29,31 @@ import * as process$0 from "./internal/process/models.js";
  * 「已在运行」就跳过退出——进程退了，但服务是活的，只看任务状态就会误报
  * 「已停止」。
  */
-export function CheckPorts(ports: number[] | null): $CancellablePromise<portinfo$0.Listener[] | null> {
-    return $Call.ByID(4176726652, ports);
+export function CheckPorts(ports: number[]): $CancellablePromise<portinfo$0.Listener[]> {
+    return $Call.ByID(4176726652, ports).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**
  * ListRunning 返回所有任务的运行快照。
  */
-export function ListRunning(): $CancellablePromise<process$0.Runtime[] | null> {
-    return $Call.ByID(1243287035);
+export function ListRunning(): $CancellablePromise<process$0.Runtime[]> {
+    return $Call.ByID(1243287035).then(($result: any) => {
+        return $$createType3($result);
+    });
+}
+
+/**
+ * RestartTask 重启任务：端口被外部进程占着时，先杀掉那棵进程树再启动。
+ * 
+ * 这里的「外部进程」完全不在我们的 Job Object 里，只能靠端口反查 PID
+ * 再用 Toolhelp 摸父子关系。杀之前前端已经做过二次确认。
+ */
+export function RestartTask(projectID: string, taskID: string): $CancellablePromise<$models.RestartResult> {
+    return $Call.ByID(1176407510, projectID, taskID).then(($result: any) => {
+        return $$createType4($result);
+    });
 }
 
 /**
@@ -66,3 +86,10 @@ export function StopTask(projectID: string, taskID: string): $CancellablePromise
 export function TaskLog(projectID: string, taskID: string): $CancellablePromise<string> {
     return $Call.ByID(513268349, projectID, taskID);
 }
+
+// Private type creation functions
+const $$createType0 = portinfo$0.Listener.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = process$0.Runtime.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = $models.RestartResult.createFrom;

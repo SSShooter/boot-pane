@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import ProjectPanel from "./components/ProjectPanel.svelte";
+  import StarredPanel from "./components/StarredPanel.svelte";
   import GenerateDialog from "./components/GenerateDialog.svelte";
   import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
@@ -18,7 +19,9 @@
   <Sidebar />
 
   <main class="content">
-    {#if app.selected}
+    {#if app.showStarred}
+      <StarredPanel />
+    {:else if app.selected}
       <ProjectPanel project={app.selected} />
     {:else if !app.loading}
       <div class="empty">

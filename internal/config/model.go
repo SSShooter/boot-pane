@@ -26,6 +26,18 @@ const (
 type Workspace struct {
 	Version  int       `json:"version"`
 	Projects []Project `json:"projects"`
+	Stars    []StarRef `json:"stars,omitempty"`
+}
+
+// StarRef 指向一个被星标的任务。
+//
+// 星标是「本机视角的偏好」，不是任务定义的一部分，所以单独存一份，
+// 不往 Task 里塞字段。原因是项目内配置（.bootpane.json）要跟仓库走、
+// 由团队共享，星标这种纯个人习惯的东西一旦混进任务定义，切到项目内配置
+// 时就无处落地了。独立列表对两种配置来源一视同仁。
+type StarRef struct {
+	ProjectID string `json:"projectId"`
+	TaskID    string `json:"taskId"`
 }
 
 // Project 是注册表里的一个项目条目。
@@ -100,19 +112,22 @@ type Pipeline struct {
 
 // ResolvedProject 是配置解析后的只读视图，直接交给前端渲染。
 type ResolvedProject struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	Path         string   `json:"path"`
-	Tags         []string `json:"tags"`
-	Pinned       bool     `json:"pinned"`
-	Exists       bool     `json:"exists"`       // 目录是否还在
-	UseRepoConfig bool    `json:"useRepoConfig"`
-	ConfigSource string   `json:"configSource"` // SourceGlobal | SourceRepo
-	HasRepoCfg   bool     `json:"hasRepoConfig"` // 仓库里是否真的存在 .bootpane.json
-	ConfigErr    string   `json:"configError,omitempty"`
-	Tasks        []Task     `json:"tasks"`
-	Pipelines    []Pipeline `json:"pipelines"`
-	Issues       []Issue    `json:"issues"`
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	Path          string     `json:"path"`
+	Tags          []string   `json:"tags"`
+	Pinned        bool       `json:"pinned"`
+	Exists        bool       `json:"exists"` // 目录是否还在
+	UseRepoConfig bool       `json:"useRepoConfig"`
+	ConfigSource  string     `json:"configSource"`  // SourceGlobal | SourceRepo
+	HasRepoCfg    bool       `json:"hasRepoConfig"` // 仓库里是否真的存在 .bootpane.json
+	ConfigErr     string     `json:"configError,omitempty"`
+	Tasks         []Task     `json:"tasks"`
+	Pipelines     []Pipeline `json:"pipelines"`
+	Issues        []Issue    `json:"issues"`
+	// StarredTaskIDs 是本项目下被星标的任务 id。
+	// 前端用它判断哪张卡片是星标，跨项目聚合时也靠它筛选。
+	StarredTaskIDs []string `json:"starredTaskIds"`
 }
 
 // Issue 是校验阶段发现的问题。error 级会阻止启动，warn 级只提示。

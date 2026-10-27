@@ -44,6 +44,10 @@ var (
 	procWriteFile                     = modkernel32.NewProc("WriteFile")
 	procGetExtendedTcpTable           = modiphlpapi.NewProc("GetExtendedTcpTable")
 	procQueryFullProcessImageNameW    = modkernel32.NewProc("QueryFullProcessImageNameW")
+	procCreateToolhelp32Snapshot      = modkernel32.NewProc("CreateToolhelp32Snapshot")
+	procProcess32FirstW               = modkernel32.NewProc("Process32FirstW")
+	procProcess32NextW                = modkernel32.NewProc("Process32NextW")
+	procTerminateProcess              = modkernel32.NewProc("TerminateProcess")
 )
 
 // 进程创建标志。
@@ -774,4 +778,95 @@ func ProcessName(pid uint32) string {
 		return ""
 	}
 	return filepath.Base(syscall.UTF16ToString(buf[:size]))
+}
+
+// ---------- 进程树遍历与终止 ----------
+
+// Toolhelp 快照与终止权限。
+const (
+	Th32csSnapProcess = 0x00000002
+	ProcessTerminate  = 0x0001
+	InvalidPIDValue   = 0xFFFFFFFF
+)
+
+// ProcessEntry32 是 PROCESSENTRY32W。
+//
+// DefaultHeapID 是 ULONG_PTR，Go 会自动按 8 字节对齐，和 C 布局一致（总长 564）。
+type ProcessEntry32 struct {
+	Size            uint32
+	CntUsage        uint32
+	ProcessID       uint32
+	DefaultHeapID   uintptr
+	ModuleID        uint32
+	CntThreads      uint32
+	ParentProcessID uint32
+	PriClassBase    int32
+	Flags           uint32
+	ExeFile         [260]uint16
+}
+
+// ProcessNode 是进程树里的一个节点。
+type ProcessNode struct {
+	PID  int
+	PPID int
+	Name string
+}
+
+// SnapshotProcesses 取一份全量进程快照。
+//
+// 用它而不是 NtQueryInformationProcess 逐个查父进程：一次快照就能拿到全表，
+// 遍历几百个进程也只有一次系统调用。
+func SnapshotProcesses() ([]ProcessNode, error) {
+	snap, _, err := procCreateToolhelp32Snapshot.Call(Th32csSnapProcess, 0)
+	if snap == uintptr(syscall.InvalidHandle) || snap == 0 {
+		return nil, lastError(err)
+	}
+	defer procCloseHandle.Call(snap)
+
+	var entry ProcessEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+
+	r1, _, callErr := procProcess32FirstW.Call(snap, uintptr(unsafe.Pointer(&entry)))
+	if r1 == 0 {
+		// 一个进程都没有时返回 ERROR_NO_MORE_FILES，按空列表处理。
+		if errno, ok := callErr.(syscall.Errno); ok && errno == 18 {
+			return nil, nil
+		}
+		return nil, lastError(callErr)
+	}
+
+	out := make([]ProcessNode, 0, 256)
+	for {
+		out = append(out, ProcessNode{
+			PID:  int(entry.ProcessID),
+			PPID: int(entry.ParentProcessID),
+			Name: syscall.UTF16ToString(entry.ExeFile[:]),
+		})
+		r1, _, callErr = procProcess32NextW.Call(snap, uintptr(unsafe.Pointer(&entry)))
+		if r1 == 0 {
+			if errno, ok := callErr.(syscall.Errno); ok && errno == 18 {
+				break
+			}
+			break
+		}
+	}
+	return out, nil
+}
+
+// TerminateByPID 强制结束单个进程。
+func TerminateByPID(pid int, exitCode uint32) error {
+	if pid <= 0 {
+		return syscall.EINVAL
+	}
+	h, _, err := procOpenProcess.Call(ProcessTerminate|ProcessQueryLimitedInformation, 0, uintptr(pid))
+	if h == 0 {
+		return lastError(err)
+	}
+	defer procCloseHandle.Call(h)
+
+	r1, _, callErr := procTerminateProcess.Call(h, uintptr(exitCode))
+	if r1 == 0 {
+		return lastError(callErr)
+	}
+	return nil
 }

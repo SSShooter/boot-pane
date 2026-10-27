@@ -1,9 +1,14 @@
 <script lang="ts">
   import { Dialogs } from "@wailsio/runtime";
-  import { app } from "../lib/state.svelte";
+  import { app, STARRED_VIEW } from "../lib/state.svelte";
   import type { ResolvedProject } from "../../bindings/bootpane/internal/config/models";
 
   let query = $state("");
+
+  /** 星标视图里涉及的、当前还在的项目数。 */
+  const starredProjectCount = $derived(
+    new Set(app.starredTasks.map(({ project }) => project.id)).size,
+  );
 
   const filtered = $derived.by(() => {
     const q = query.trim().toLowerCase();
@@ -63,6 +68,39 @@
   </div>
 
   <div class="rail-list">
+    <button
+      class="proj-item starred-item"
+      class:is-active={app.showStarred}
+      onclick={() => app.select(STARRED_VIEW)}
+      title="跨项目聚合的星标任务"
+    >
+      <div class="proj-row">
+        <svg
+          class="star-glyph"
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill={app.starredTasks.length > 0 ? "currentColor" : "none"}
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        >
+          <path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z" />
+        </svg>
+        <span class="proj-name">星标任务</span>
+        {#if app.starredTasks.length > 0}
+          <span class="count-chip">{app.starredTasks.length}</span>
+        {/if}
+      </div>
+      <div class="proj-sub">
+        {app.starredTasks.length > 0
+          ? `来自 ${starredProjectCount} 个项目`
+          : "还没有星标任务"}
+      </div>
+    </button>
+
+    <div class="rail-sep"></div>
+
     {#each filtered as p (p.id)}
       <button
         class="proj-item"

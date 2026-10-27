@@ -17,6 +17,9 @@ Wails3 桌面应用，做「项目启动器」：列出项目，每个项目挂�
   这样纯浏览器跑 `npm run dev` 时能自动切到 `devmock.ts` 假数据。
 - **Wails service 方法不要用 `(T, error)` 返回业务错误**：error 非空时 T 会被丢弃，
   前端拿不到细节。业务错误放返回值里（参考 `ImportResult`），error 只用于系统级失败。
+- **个人偏好类状态存 workspace.json 顶层，不要塞进 `Task`/`Project` 定义**。
+  任务定义要能跟仓库走（`.bootpane.json` 是团队共享的），星标这类本机习惯一旦混进去，
+  切到项目内配置就无处落地。参考 `Workspace.Stars` + `ResolvedProject.StarredTaskIDs`。
 
 ## 验证方式（硬性，别再试错）
 
@@ -44,6 +47,27 @@ wails3 generate bindings -ts -d frontend/bindings .   # Go 改了服务方法后
 go test ./internal/... -timeout 180s          # 全部 Go 测试
 cd frontend && npm run check && npm run build # 前端类型检查 + 构建
 ```
+
+`npm run dev` 和 `wails3 dev` **都占 9245 且都是 strictPort，不能同时开**，
+同时开后者直接报 `bind: Only one usage of each socket address`。
+调 UI 要独立端口时用 `npm run dev -- --port 9247`。
+
+**`npm run dev` 报 `SAFE_DELETE_BULK_CONFIRM_REQUIRED`**（vite 想清 `node_modules/.vite/deps_ssr`
+被沙箱批量删除保护拦下）时，不要删、直接改名：
+`mv frontend/node_modules/.vite frontend/node_modules/.vite.bak`，vite 会重建一份新的。
+
+## 前端样式约定
+
+- 样式全在 `frontend/public/style.css`。**它在 `public/` 下，vite 不做 HMR**，
+  改完必须整页刷新（Ctrl+Shift+R）。只改 CSS 却看到「改了没生效」，先怀疑缓存。
+- `.task-grid` 最小轨道 320px 是算出来的下限：卡片底部一行
+  「状态 + CPU/内存 + 日志 + 停止」需要约 300px，低于这个值就会挤爆。
+- 卡片底部**禁止 `flex-wrap: wrap`**。状态文字长度会变（运行中 / 等待就绪 / 已退出），
+  一换行按钮组就在两行之间来回跳。正确做法：按钮组 `margin-left: auto; flex: none`
+  固定靠右，状态文字 `flex: 0 1 auto; min-width: 0` 收缩省略（文字要包一层 `.state-text`，
+  因为 flex 容器的 `text-overflow` 对裸文本节点无效）。
+- 命令行走 `overflow-wrap: break-word`，**不要用 `break-all`**——后者把每个字符都当断点，
+  会出现 `ExecutionP / olicy` 这种词中间硬断。
 
 ## 待办
 
