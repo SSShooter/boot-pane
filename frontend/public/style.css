@@ -494,20 +494,53 @@ input {
   text-overflow: ellipsis;
 }
 
-.badge {
-  font-size: 10.5px;
-  padding: 0 5px;
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  color: var(--text-faint);
-  background: var(--surface-sunk);
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- 配置来源切换 ---------- */
+
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface);
   flex: none;
 }
 
-.badge.local {
-  color: var(--warn);
-  border-color: #fde68a;
-  background: var(--warn-soft);
+.seg button {
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 18px;
+  color: var(--text-dim);
+}
+
+.seg button:hover {
+  background: var(--surface-sunk);
+}
+
+.seg button.is-on {
+  background: var(--text);
+  color: #fff;
+}
+
+.seg button.is-on:hover {
+  background: var(--text);
+}
+
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.btn-mini {
+  height: 24px;
+  padding: 0 9px;
+  font-size: 11.5px;
 }
 
 .task-cmd {
@@ -664,6 +697,183 @@ input {
   color: var(--text-dim);
   overflow-x: auto;
   white-space: pre;
+}
+
+/* ---------- 生成配置弹窗 ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 25, 23, 0.34);
+  display: grid;
+  place-items: center;
+  padding: 32px;
+  z-index: 40;
+}
+
+.dialog {
+  width: min(700px, 100%);
+  max-height: min(740px, calc(100vh - 64px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(28, 25, 23, 0.24);
+  overflow: hidden;
+}
+
+.dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 13px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dialog-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.dialog-body {
+  padding: 15px 18px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+}
+
+.step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.step-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.step-title {
+  flex: 1;
+  font-weight: 500;
+}
+
+.step-hint {
+  margin: 0 0 8px 26px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-faint);
+}
+
+.step-hint code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  background: var(--surface-sunk);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.prompt-box {
+  margin-left: 26px;
+  max-height: 190px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunk);
+}
+
+.prompt-box pre {
+  margin: 0;
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.prompt-loading {
+  padding: 14px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.paste-area {
+  margin-left: 26px;
+  width: calc(100% - 26px);
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  outline: none;
+  resize: vertical;
+}
+
+.paste-area:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.dialog-error {
+  margin: 8px 0 0 26px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid #fecaca;
+  background: var(--err-soft);
+  color: #7f1d1d;
+  font-size: 12px;
+}
+
+.dialog-issues {
+  margin: 8px 0 0 26px;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.dialog-issues li.err {
+  color: var(--err);
+}
+
+.dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-sunk);
+}
+
+.dialog-note {
+  margin-right: auto;
+  font-size: 11.5px;
+  color: var(--text-faint);
 }
 
 /* ---------- Toast ---------- */

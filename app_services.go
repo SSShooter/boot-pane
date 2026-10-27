@@ -58,6 +58,60 @@ func (c *ConfigService) ConfigFilePath() string {
 	return c.store.FilePath()
 }
 
+// SetUseRepoConfig 切换某个项目的配置来源：全局注册表 ↔ 仓库内 .bootpane.json。
+func (c *ConfigService) SetUseRepoConfig(id string, enabled bool) error {
+	return c.store.SetUseRepoConfig(id, enabled)
+}
+
+// BuildConfigPrompt 生成一段可以贴给任意大模型的 prompt，用来产出启动配置。
+func (c *ConfigService) BuildConfigPrompt(id string) (string, error) {
+	p, err := c.store.Get(id)
+	if err != nil {
+		return "", err
+	}
+	return config.BuildPrompt(p), nil
+}
+
+// ImportTasks 解析用户粘贴回来的配置，校验通过后才写入全局注册表。
+//
+// 大模型会编造不存在的命令，所以这一步不能直接落盘：先按项目真实路径跑一遍
+// 校验器，有阻断性问题就把问题原样返回，一条都不写。
+func (c *ConfigService) ImportTasks(id, raw string) (config.ImportResult, error) {
+	p, err := c.store.Get(id)
+	if err != nil {
+		return config.ImportResult{}, err
+	}
+	if p.UseRepoConfig {
+		return config.ImportResult{Error: "该项目当前使用项目内配置，请先切回全局再导入"}, nil
+	}
+
+	pf, err := config.ParseProjectFile(raw)
+	if err != nil {
+		return config.ImportResult{Error: err.Error()}, nil
+	}
+
+	check := config.ResolvedProject{
+		Path:      p.Path,
+		Exists:    p.Exists,
+		Tasks:     pf.Tasks,
+		Pipelines: pf.Pipelines,
+	}
+	issues := config.Validate(&check)
+	for _, issue := range issues {
+		if issue.Level == "error" {
+			return config.ImportResult{
+				Error:  "导入的配置有错误，已取消写入",
+				Issues: issues,
+			}, nil
+		}
+	}
+
+	if err := c.store.SetTasks(id, pf.Tasks, pf.Pipelines); err != nil {
+		return config.ImportResult{}, err
+	}
+	return config.ImportResult{OK: true, Imported: len(pf.Tasks), Issues: issues}, nil
+}
+
 // ProcessService 向前端暴露任务运行控制。
 type ProcessService struct {
 	mgr   *process.Manager

@@ -16,11 +16,18 @@ class AppState {
   selectedId = $state("");
   loading = $state(true);
 
+  /** 当前打开「生成配置」弹窗的项目 id，null 表示弹窗关闭。 */
+  generatorProjectId = $state<string | null>(null);
+
   toast = $state("");
   toastIsError = $state(false);
   private toastTimer: ReturnType<typeof setTimeout> | undefined;
 
   selected = $derived(this.projects.find((p) => p.id === this.selectedId) ?? null);
+
+  generatorProject = $derived(
+    this.projects.find((p) => p.id === this.generatorProjectId) ?? null,
+  );
 
   /** 拉取项目列表，并在必要时修正当前选中项。 */
   async load(): Promise<void> {
@@ -98,6 +105,25 @@ class AppState {
     } catch (e) {
       this.notify(describeError(e), true);
     }
+  }
+
+  /** 切换配置来源：全局注册表 ↔ 仓库内 .bootpane.json。 */
+  async setUseRepoConfig(id: string, enabled: boolean): Promise<void> {
+    try {
+      await api.setUseRepoConfig(id, enabled);
+      await this.load();
+      this.notify(enabled ? "已切换为项目内配置" : "已切换为全局配置");
+    } catch (e) {
+      this.notify(describeError(e), true);
+    }
+  }
+
+  openGenerator(id: string): void {
+    this.generatorProjectId = id;
+  }
+
+  closeGenerator(): void {
+    this.generatorProjectId = null;
   }
 
   async startTask(projectId: string, taskId: string): Promise<void> {
