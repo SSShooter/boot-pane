@@ -35,9 +35,6 @@
 <div class="task-card">
   <div class="task-top">
     <span class="task-label" title={task.label}>{task.label}</span>
-    {#if task.origin === "local"}
-      <span class="badge local" title="来自全局注册表的个人配置，不会提交进仓库">本地</span>
-    {/if}
   </div>
 
   <div class="task-cmd" title={task.command}>{task.command}</div>

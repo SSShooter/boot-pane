@@ -22,6 +22,13 @@ export function AddProject(path: string): $CancellablePromise<config$0.ResolvedP
 }
 
 /**
+ * BuildConfigPrompt 生成一段可以贴给任意大模型的 prompt，用来产出启动配置。
+ */
+export function BuildConfigPrompt(id: string): $CancellablePromise<string> {
+    return $Call.ByID(3998398025, id);
+}
+
+/**
  * ConfigFilePath 返回注册表文件路径，界面上用于展示。
  */
 export function ConfigFilePath(): $CancellablePromise<string> {
@@ -33,6 +40,16 @@ export function ConfigFilePath(): $CancellablePromise<string> {
  */
 export function GetProject(id: string): $CancellablePromise<config$0.ResolvedProject> {
     return $Call.ByID(3485741446, id);
+}
+
+/**
+ * ImportTasks 解析用户粘贴回来的配置，校验通过后才写入全局注册表。
+ * 
+ * 大模型会编造不存在的命令，所以这一步不能直接落盘：先按项目真实路径跑一遍
+ * 校验器，有阻断性问题就把问题原样返回，一条都不写。
+ */
+export function ImportTasks(id: string, raw: string): $CancellablePromise<config$0.ImportResult> {
+    return $Call.ByID(986866364, id, raw);
 }
 
 /**
@@ -61,4 +78,11 @@ export function OpenProjectDir(id: string): $CancellablePromise<void> {
  */
 export function RemoveProject(id: string): $CancellablePromise<void> {
     return $Call.ByID(581203932, id);
+}
+
+/**
+ * SetUseRepoConfig 切换某个项目的配置来源：全局注册表 ↔ 仓库内 .bootpane.json。
+ */
+export function SetUseRepoConfig(id: string, enabled: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1420739874, id, enabled);
 }

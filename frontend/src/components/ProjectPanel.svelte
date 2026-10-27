@@ -19,29 +19,37 @@
   const errors = $derived(project.issues.filter((i) => i.level === "error"));
   const warns = $derived(project.issues.filter((i) => i.level === "warn"));
 
+  /** 仓库里自带配置，但当前用的是全局配置——提醒用户可以切过去。 */
+  const repoHint = $derived(project.exists && project.hasRepoConfig && !project.useRepoConfig);
+
   function confirmRemove(): void {
     const ok = confirm(`从列表移除「${project.name}」？\n磁盘上的仓库文件不会被删除。`);
     if (ok) app.removeProject(project.id);
   }
-
-  const snippet = `{
-  "version": 1,
-  "tasks": [
-    {
-      "id": "web",
-      "label": "启动前端",
-      "group": "前端",
-      "command": "pnpm dev",
-      "waitFor": { "type": "port", "port": 5173 }
-    }
-  ]
-}`;
 </script>
 
 <div class="panel">
   <div class="panel-head">
     <div class="panel-title">
-      <h1>{project.name}</h1>
+      <div class="title-row">
+        <h1>{project.name}</h1>
+        <div class="seg" role="group" aria-label="配置来源">
+          <button
+            class:is-on={!project.useRepoConfig}
+            title="使用本机注册表里的配置"
+            onclick={() => app.setUseRepoConfig(project.id, false)}
+          >
+            全局
+          </button>
+          <button
+            class:is-on={project.useRepoConfig}
+            title="使用仓库根目录的 .bootpane.json"
+            onclick={() => app.setUseRepoConfig(project.id, true)}
+          >
+            项目内
+          </button>
+        </div>
+      </div>
       <div class="panel-path">{project.path}</div>
       {#if project.tags.length > 0}
         <div class="tag-row">
@@ -52,6 +60,9 @@
       {/if}
     </div>
     <div class="head-actions">
+      <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
+        生成配置
+      </button>
       <button class="btn" onclick={() => app.openProjectDir(project.id)}>打开目录</button>
       <button class="btn btn-danger" onclick={confirmRemove}>移除</button>
     </div>
@@ -83,6 +94,17 @@
     </div>
   {/if}
 
+  {#if repoHint && errors.length === 0}
+    <div class="banner info">
+      <div>
+        这个仓库自带 <code>.bootpane.json</code>，当前用的是全局配置。
+        <button class="link-btn" onclick={() => app.setUseRepoConfig(project.id, true)}>
+          切换过去
+        </button>
+      </div>
+    </div>
+  {/if}
+
   {#if project.exists && project.tasks.length === 0}
     <div class="empty" style="height: auto; padding: 44px 0;">
       <div class="empty-icon">
@@ -92,10 +114,15 @@
       </div>
       <h2>这个项目还没有启动按钮</h2>
       <p>
-        在仓库根目录新建 <code>.bootpane.json</code> 即可定义。一个项目可以配置任意多个启动项，
-        用 <code>group</code> 分组、<code>dependsOn</code> 控制先后顺序。
+        让 AI 读一遍仓库结构，自动生成一份配置——复制 prompt 到项目目录下用，
+        再把结果粘回来就行。也可以手动编辑全局注册表。
       </p>
-      <pre class="snippet">{snippet}</pre>
+      <div class="empty-actions">
+        <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
+          生成配置
+        </button>
+        <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
+      </div>
     </div>
   {:else}
     {#each groups as group (group.name)}

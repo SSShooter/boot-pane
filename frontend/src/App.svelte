@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import ProjectPanel from "./components/ProjectPanel.svelte";
+  import GenerateDialog from "./components/GenerateDialog.svelte";
   import { app } from "./lib/state.svelte";
 
   onMount(() => {
@@ -33,6 +34,10 @@
     {/if}
   </main>
 </div>
+
+{#if app.generatorProject}
+  <GenerateDialog project={app.generatorProject} onclose={() => app.closeGenerator()} />
+{/if}
 
 {#if app.toast}
   <div class="toast" class:err={app.toastIsError} role="status" aria-live="polite">{app.toast}</div>

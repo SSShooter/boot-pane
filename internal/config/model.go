@@ -4,10 +4,10 @@
 // 应该跟代码一起走、供团队共享。
 package config
 
-// 配置来源标记，用于在 UI 上区分「团队共享」与「我个人加的」。
+// 配置来源。两者二选一，不叠加。
 const (
-	OriginRepo  = "repo"  // 来自仓库内 .bootpane.json
-	OriginLocal = "local" // 来自全局注册表的个人覆盖层
+	SourceGlobal = "global" // 来自全局注册表，默认行为
+	SourceRepo   = "repo"   // 来自仓库内 .bootpane.json
 )
 
 // WaitFor 的匹配类型。
@@ -30,16 +30,17 @@ type Workspace struct {
 
 // Project 是注册表里的一个项目条目。
 //
-// LocalTasks 是个人覆盖层：团队配置放在仓库的 .bootpane.json 里，
-// 但用户可能想加一个只有自己用的调试按钮，又不希望提交进 git，
-// 就写在这里。合并时以仓库配置为准，这里只补缺。
+// 默认情况下启动按钮全部存在这里，用户不需要往仓库里塞任何文件。
+// 只有显式把 UseRepoConfig 打开，才会去读仓库根目录的 .bootpane.json。
 type Project struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Path       string   `json:"path"`
-	Tags       []string `json:"tags,omitempty"`
-	Pinned     bool     `json:"pinned,omitempty"`
-	LocalTasks []Task   `json:"localTasks,omitempty"`
+	ID            string     `json:"id"`
+	Name          string     `json:"name"`
+	Path          string     `json:"path"`
+	Tags          []string   `json:"tags,omitempty"`
+	Pinned        bool       `json:"pinned,omitempty"`
+	UseRepoConfig bool       `json:"useRepoConfig,omitempty"`
+	Tasks         []Task     `json:"tasks,omitempty"`
+	Pipelines     []Pipeline `json:"pipelines,omitempty"`
 }
 
 // ProjectFile 是仓库内 .bootpane.json 的结构，建议提交进 git。
@@ -74,9 +75,6 @@ type Task struct {
 	OpenURL   string `json:"openUrl,omitempty"`   // 就绪后自动打开
 	Singleton *bool  `json:"singleton,omitempty"` // 默认 true，防止同一按钮起两份
 	AutoStart bool   `json:"autoStart,omitempty"`
-
-	// Origin 由合并阶段填写，不写盘。
-	Origin string `json:"origin,omitempty"`
 }
 
 // SingletonEnabled 返回是否禁止重复启动，未显式配置时默认为 true。
@@ -100,19 +98,21 @@ type Pipeline struct {
 	Mode  string   `json:"mode,omitempty"`
 }
 
-// ResolvedProject 是两层配置合并后的只读视图，直接交给前端渲染。
+// ResolvedProject 是配置解析后的只读视图，直接交给前端渲染。
 type ResolvedProject struct {
-	ID         string   `json:"id"`
-	Name       string   `json:"name"`
-	Path       string   `json:"path"`
-	Tags       []string `json:"tags"`
-	Pinned     bool     `json:"pinned"`
-	Exists     bool     `json:"exists"`         // 目录是否还在
-	HasRepoCfg bool     `json:"hasRepoConfig"`  // 是否存在 .bootpane.json
-	ConfigErr  string   `json:"configError,omitempty"`
-	Tasks      []Task     `json:"tasks"`
-	Pipelines  []Pipeline `json:"pipelines"`
-	Issues     []Issue    `json:"issues"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Path         string   `json:"path"`
+	Tags         []string `json:"tags"`
+	Pinned       bool     `json:"pinned"`
+	Exists       bool     `json:"exists"`       // 目录是否还在
+	UseRepoConfig bool    `json:"useRepoConfig"`
+	ConfigSource string   `json:"configSource"` // SourceGlobal | SourceRepo
+	HasRepoCfg   bool     `json:"hasRepoConfig"` // 仓库里是否真的存在 .bootpane.json
+	ConfigErr    string   `json:"configError,omitempty"`
+	Tasks        []Task     `json:"tasks"`
+	Pipelines    []Pipeline `json:"pipelines"`
+	Issues       []Issue    `json:"issues"`
 }
 
 // Issue 是校验阶段发现的问题。error 级会阻止启动，warn 级只提示。

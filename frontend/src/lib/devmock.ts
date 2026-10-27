@@ -1,4 +1,5 @@
 import type {
+  ImportResult,
   ResolvedProject,
   Task,
 } from "../../bindings/bootpane/internal/config/models";
@@ -11,11 +12,7 @@ import type {
  */
 
 function task(partial: Partial<Task> & { id: string; label: string; command: string }): Task {
-  return {
-    cwd: "",
-    origin: "repo",
-    ...partial,
-  } as Task;
+  return { cwd: "", ...partial } as Task;
 }
 
 const uniAppProject: ResolvedProject = {
@@ -25,6 +22,8 @@ const uniAppProject: ResolvedProject = {
   tags: ["uni-app", "vue3"],
   pinned: false,
   exists: true,
+  useRepoConfig: false,
+  configSource: "global",
   hasRepoConfig: true,
   tasks: [
     task({
@@ -48,7 +47,6 @@ const uniAppProject: ResolvedProject = {
       group: "服务",
       command: "node ./mock/server.js",
       cwd: "tools",
-      origin: "local",
       waitFor: { type: "port", port: 3001 } as any,
     }),
   ],
@@ -63,15 +61,10 @@ const backendProject: ResolvedProject = {
   tags: ["go"],
   pinned: false,
   exists: true,
+  useRepoConfig: false,
+  configSource: "global",
   hasRepoConfig: false,
-  tasks: [
-    task({
-      id: "server",
-      label: "启动 API",
-      command: "go run ./cmd/api",
-      waitFor: { type: "port", port: 8080 } as any,
-    }),
-  ],
+  tasks: [],
   pipelines: [],
   issues: [],
 } as ResolvedProject;
@@ -83,6 +76,8 @@ const brokenProject: ResolvedProject = {
   tags: [],
   pinned: false,
   exists: false,
+  useRepoConfig: false,
+  configSource: "global",
   hasRepoConfig: false,
   tasks: [],
   pipelines: [],
@@ -95,6 +90,16 @@ export const mockProjects: ResolvedProject[] = [
   brokenProject,
 ];
 
+const mockPrompt = `我要给一个项目配置 bootpane 的启动按钮。
+
+【使用方式】请把这段内容放到项目根目录下使用：
+    D:\\code\\my-shop
+在该目录里打开你的 AI 工具再贴这段话。
+
+只输出一个 json 代码块，不要任何解释文字。
+
+（浏览器预览模式下这里是截断的示例 prompt，真实内容由 Go 侧生成）`;
+
 export const mockApi = {
   async listProjects(): Promise<ResolvedProject[]> {
     return mockProjects;
@@ -105,6 +110,18 @@ export const mockApi = {
   async removeProject(): Promise<void> {},
   async openProjectDir(): Promise<void> {},
   async openConfigDir(): Promise<void> {},
+  async setUseRepoConfig(): Promise<void> {
+    throw new Error("浏览器预览模式：无法切换配置来源");
+  },
+  async buildConfigPrompt(): Promise<string> {
+    return mockPrompt;
+  },
+  async importTasks(_id: string, raw: string): Promise<ImportResult> {
+    if (!raw.trim()) {
+      throw new Error("没找到 JSON 内容，请确认粘贴的是完整的配置");
+    }
+    throw new Error("浏览器预览模式：导入需要在桌面应用里操作");
+  },
   async listRunning() {
     return [];
   },

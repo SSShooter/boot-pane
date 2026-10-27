@@ -1,5 +1,8 @@
 import { ConfigService, ProcessService } from "../../bindings/bootpane";
-import type { ResolvedProject } from "../../bindings/bootpane/internal/config/models";
+import type {
+  ImportResult,
+  ResolvedProject,
+} from "../../bindings/bootpane/internal/config/models";
 import type { Runtime } from "../../bindings/bootpane/internal/process/models";
 import { mockApi } from "./devmock";
 
@@ -18,6 +21,9 @@ export interface Api {
   removeProject(id: string): Promise<void>;
   openProjectDir(id: string): Promise<void>;
   openConfigDir(): Promise<void>;
+  setUseRepoConfig(id: string, enabled: boolean): Promise<void>;
+  buildConfigPrompt(id: string): Promise<string>;
+  importTasks(id: string, raw: string): Promise<ImportResult>;
   listRunning(): Promise<Runtime[]>;
   startTask(projectId: string, taskId: string): Promise<void>;
   stopTask(projectId: string, taskId: string): Promise<void>;
@@ -29,6 +35,9 @@ const realApi: Api = {
   removeProject: (id) => ConfigService.RemoveProject(id),
   openProjectDir: (id) => ConfigService.OpenProjectDir(id),
   openConfigDir: () => ConfigService.OpenConfigDir(),
+  setUseRepoConfig: (id, enabled) => ConfigService.SetUseRepoConfig(id, enabled),
+  buildConfigPrompt: (id) => ConfigService.BuildConfigPrompt(id),
+  importTasks: (id, raw) => ConfigService.ImportTasks(id, raw),
   listRunning: () => ProcessService.ListRunning(),
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),

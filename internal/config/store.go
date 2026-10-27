@@ -182,17 +182,23 @@ func (s *Store) Remove(id string) error {
 	return ErrProjectNotFound
 }
 
-// Resolve 把单个项目的两层配置合并成视图。调用方负责持有锁或拷贝。
+// Resolve 把项目解析成前端视图。
+//
+// 默认只读全局注册表里的任务，完全不碰仓库——这是零侵入的默认行为。
+// 只有用户显式打开 UseRepoConfig，才会去读仓库里的 .bootpane.json，
+// 此时仓库配置完全取代全局配置，两者不叠加。
 func (s *Store) Resolve(p Project) ResolvedProject {
 	rp := ResolvedProject{
-		ID:        p.ID,
-		Name:      p.Name,
-		Path:      p.Path,
-		Tags:      append([]string{}, p.Tags...),
-		Pinned:    p.Pinned,
-		Tasks:     []Task{},
-		Pipelines: []Pipeline{},
-		Issues:    []Issue{},
+		ID:            p.ID,
+		Name:          p.Name,
+		Path:          p.Path,
+		Tags:          append([]string{}, p.Tags...),
+		Pinned:        p.Pinned,
+		UseRepoConfig: p.UseRepoConfig,
+		ConfigSource:  SourceGlobal,
+		Tasks:         []Task{},
+		Pipelines:     []Pipeline{},
+		Issues:        []Issue{},
 	}
 
 	if fi, err := os.Stat(p.Path); err == nil && fi.IsDir() {
@@ -201,6 +207,8 @@ func (s *Store) Resolve(p Project) ResolvedProject {
 		rp.Issues = append(rp.Issues, Issue{Level: "error", Message: "项目目录不存在或不可访问"})
 	}
 
+	// 不管开没开项目内配置，都探一下仓库里有没有 .bootpane.json，
+	// 界面上要能提示「这个仓库自带配置，要不要用」。
 	var pf ProjectFile
 	if rp.Exists {
 		raw, err := os.ReadFile(filepath.Join(p.Path, RepoConfigName))
@@ -209,13 +217,32 @@ func (s *Store) Resolve(p Project) ResolvedProject {
 			rp.HasRepoCfg = true
 			if e := json.Unmarshal(raw, &pf); e != nil {
 				rp.ConfigErr = fmt.Sprintf("%s 解析失败: %v", RepoConfigName, e)
-				rp.Issues = append(rp.Issues, Issue{Level: "error", Message: rp.ConfigErr})
 				pf = ProjectFile{}
 			}
 		case !errors.Is(err, os.ErrNotExist):
 			rp.ConfigErr = fmt.Sprintf("读取 %s 失败: %v", RepoConfigName, err)
-			rp.Issues = append(rp.Issues, Issue{Level: "warn", Message: rp.ConfigErr})
 		}
+	}
+
+	if p.UseRepoConfig {
+		rp.ConfigSource = SourceRepo
+		rp.Tasks = normalizeTasks(pf.Tasks)
+		rp.Pipelines = nonNilPipelines(pf.Pipelines)
+		if rp.Exists && !rp.HasRepoCfg {
+			rp.Issues = append(rp.Issues, Issue{
+				Level:   "error",
+				Message: "已切换为项目内配置，但仓库里没有 " + RepoConfigName,
+			})
+		}
+		if rp.ConfigErr != "" {
+			rp.Issues = append(rp.Issues, Issue{Level: "error", Message: rp.ConfigErr})
+		}
+		if len(pf.Project.Tags) > 0 {
+			rp.Tags = dedupe(append(rp.Tags, pf.Project.Tags...))
+		}
+	} else {
+		rp.Tasks = normalizeTasks(p.Tasks)
+		rp.Pipelines = nonNilPipelines(p.Pipelines)
 	}
 
 	if rp.Name == "" {
@@ -224,48 +251,70 @@ func (s *Store) Resolve(p Project) ResolvedProject {
 	if rp.Name == "" {
 		rp.Name = filepath.Base(p.Path)
 	}
-	if len(pf.Project.Tags) > 0 {
-		rp.Tags = dedupe(append(rp.Tags, pf.Project.Tags...))
-	}
 	if rp.Tags == nil {
 		rp.Tags = []string{}
-	}
-
-	rp.Tasks = mergeTasks(pf.Tasks, p.LocalTasks)
-	if pf.Pipelines != nil {
-		rp.Pipelines = pf.Pipelines
 	}
 
 	rp.Issues = append(rp.Issues, Validate(&rp)...)
 	return rp
 }
 
-// mergeTasks 按 id 合并两层任务：仓库配置优先，个人层只补缺。
-func mergeTasks(repo, local []Task) []Task {
-	out := make([]Task, 0, len(repo)+len(local))
-	seen := make(map[string]struct{}, len(repo))
-
-	for _, t := range repo {
-		t.Origin = OriginRepo
-		if t.Label == "" {
-			t.Label = t.ID
-		}
-		out = append(out, t)
-		if t.ID != "" {
-			seen[t.ID] = struct{}{}
-		}
-	}
-	for _, t := range local {
-		if _, dup := seen[t.ID]; dup {
+// SetUseRepoConfig 切换某个项目的配置来源。
+func (s *Store) SetUseRepoConfig(id string, enabled bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.ws.Projects {
+		if s.ws.Projects[i].ID != id {
 			continue
 		}
-		t.Origin = OriginLocal
+		prev := s.ws.Projects[i].UseRepoConfig
+		s.ws.Projects[i].UseRepoConfig = enabled
+		if err := s.save(); err != nil {
+			s.ws.Projects[i].UseRepoConfig = prev
+			return err
+		}
+		return nil
+	}
+	return ErrProjectNotFound
+}
+
+// SetTasks 覆盖某个项目在全局注册表里的任务定义。
+func (s *Store) SetTasks(id string, tasks []Task, pipelines []Pipeline) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.ws.Projects {
+		if s.ws.Projects[i].ID != id {
+			continue
+		}
+		prevTasks, prevPipelines := s.ws.Projects[i].Tasks, s.ws.Projects[i].Pipelines
+		s.ws.Projects[i].Tasks = tasks
+		s.ws.Projects[i].Pipelines = pipelines
+		if err := s.save(); err != nil {
+			s.ws.Projects[i].Tasks, s.ws.Projects[i].Pipelines = prevTasks, prevPipelines
+			return err
+		}
+		return nil
+	}
+	return ErrProjectNotFound
+}
+
+// normalizeTasks 给缺 label 的任务补上默认显示名。
+func normalizeTasks(in []Task) []Task {
+	out := make([]Task, 0, len(in))
+	for _, t := range in {
 		if t.Label == "" {
 			t.Label = t.ID
 		}
 		out = append(out, t)
 	}
 	return out
+}
+
+func nonNilPipelines(in []Pipeline) []Pipeline {
+	if in == nil {
+		return []Pipeline{}
+	}
+	return in
 }
 
 var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
