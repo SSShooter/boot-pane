@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "project": {
+    "name": "bootpane",
+    "tags": ["wails3", "svelte"]
+  },
+  "tasks": [
+    {
+      "id": "dev",
+      "label": "开发模式",
+      "group": "开发",
+      "command": "wails3 dev",
+      "waitFor": { "type": "port", "port": 9245 },
+      "singleton": true
+    },
+    {
+      "id": "build",
+      "label": "构建可执行文件",
+      "group": "构建",
+      "command": "wails3 build"
+    },
+    {
+      "id": "check",
+      "label": "前端类型检查",
+      "group": "构建",
+      "command": "npm run check",
+      "cwd": "frontend"
+    }
+  ]
+}
