@@ -2,43 +2,40 @@ package main
 
 import (
 	"embed"
-
 	"log"
-	"time"
+	"os"
+
+	"bootpane/internal/config"
+	"bootpane/internal/process"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-// Wails uses Go's `embed` package to embed the frontend files into the binary.
-// Any files in the frontend/dist folder will be embedded into the binary and
-// made available to the frontend.
-// See https://pkg.go.dev/embed for more information.
-
 //go:embed all:frontend/dist
 var assets embed.FS
 
-func init() {
-	// Register a custom event whose associated data type is string.
-	// This is not required, but the binding generator will pick up registered events
-	// and provide a strongly typed JS/TS API for them.
-	application.RegisterEvent[string]("time")
-}
-
-// main function serves as the application's entry point. It initializes the application, creates a window,
-// and starts a goroutine that emits a time-based event every second. It subsequently runs the application and
-// logs any error that might occur.
 func main() {
+	store, err := config.NewStore()
+	if err != nil {
+		log.Fatalf("初始化配置失败: %v", err)
+	}
 
-	// Create a new Wails application by providing the necessary options.
-	// Variables 'Name' and 'Description' are for application metadata.
-	// 'Assets' configures the asset server with the 'FS' variable pointing to the frontend files.
-	// 'Bind' is a list of Go struct instances. The frontend has access to the methods of these instances.
-	// 'Mac' options tailor the application when running an macOS.
+	// 首次运行时把当前工作目录登记为初始项目，避免打开应用看到一片空白。
+	// 打包后工作目录是程序所在目录，通常没有 go.mod，这段不会生效。
+	if wd, err := os.Getwd(); err == nil {
+		if _, statErr := os.Stat(wd + string(os.PathSeparator) + "go.mod"); statErr == nil {
+			_ = store.SeedIfEmpty(wd)
+		}
+	}
+
+	procMgr := process.NewManager()
+
 	app := application.New(application.Options{
 		Name:        "bootpane",
-		Description: "A demo of using raw HTML & CSS",
+		Description: "项目启动器",
 		Services: []application.Service{
-			application.NewService(&GreetService{}),
+			application.NewService(NewConfigService(store)),
+			application.NewService(NewProcessService(procMgr, store)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -48,40 +45,20 @@ func main() {
 		},
 	})
 
-	// Create a new window with the necessary options.
-	// 'Title' is the title of the window.
-	// 'Mac' options tailor the window when running on macOS.
-	// 'BackgroundColour' is the background colour of the window.
-	// 'URL' is the URL that will be loaded into the webview.
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title: "Window 1",
-		// Window sized to the golden ratio (1000 / 618 ≈ 1.618).
-		Width:  1000,
-		Height: 618,
+		Title:            "bootpane",
+		Width:            1180,
+		Height:           760,
+		BackgroundColour: application.NewRGB(250, 250, 249),
+		URL:              "/",
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
-		BackgroundColour: application.NewRGB(6, 7, 15),
-		URL:              "/",
 	})
 
-	// Create a goroutine that emits an event containing the current time every second.
-	// The frontend can listen to this event and update the UI accordingly.
-	go func() {
-		for {
-			now := time.Now().Format(time.RFC1123)
-			app.Event.Emit("time", now)
-			time.Sleep(time.Second)
-		}
-	}()
-
-	// Run the application. This blocks until the application has been exited.
-	err := app.Run()
-
-	// If an error occurred while running the application, log it and exit.
-	if err != nil {
+	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
 }

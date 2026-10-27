@@ -1,4 +1,4 @@
-module changeme
+module bootpane
 
 go 1.26.0
 
