@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { app } from "../lib/state.svelte";
   import { OPEN_WITH_CUSTOM, OPEN_WITH_PRESETS, openWithLabel } from "../lib/openwith";
   import type { OpenWithPreset } from "../lib/openwith";
+  import Select from "./Select.svelte";
 
   const autoOpenLog = $derived(app.settings.autoOpenLogOnStart);
 
@@ -33,10 +35,18 @@
     };
   });
 
+  /** 设置页那一行要选的东西：兜底的空值 + 候选 + 自定义。 */
+  const openWithOptions = $derived<OpenWithPreset[]>([
+    { value: "", label: "系统文件管理器" },
+    ...choices.list,
+    { value: OPEN_WITH_CUSTOM, label: "自定义…" },
+  ]);
+
   /** 选中「自定义…」后输入框才出现；已保存的命令不在候选里时也要显示。 */
   let customMode = $state(false);
   let editing = $state(false);
   let draft = $state("");
+  let customInput = $state<HTMLInputElement | null>(null);
 
   const showCustom = $derived(customMode || (!choices.known && currentOpenWith !== ""));
 
@@ -45,11 +55,13 @@
     if (!editing) draft = currentOpenWith;
   });
 
-  function pickOpenWith(event: Event): void {
-    const value = (event.currentTarget as HTMLSelectElement).value;
+  async function pickOpenWith(value: string): Promise<void> {
     if (value === OPEN_WITH_CUSTOM) {
       customMode = true;
       editing = true;
+      // 选中「自定义…」就是来表达「我要写一条」，直接把光标送进输入框。
+      await tick();
+      customInput?.focus();
       return;
     }
     customMode = false;
@@ -119,18 +131,12 @@
           </p>
         </div>
         <div class="setting-control">
-          <select
-            class="select"
-            aria-label="打开项目目录时使用"
+          <Select
             value={showCustom ? OPEN_WITH_CUSTOM : currentOpenWith}
+            options={openWithOptions}
+            label="打开项目目录时使用"
             onchange={pickOpenWith}
-          >
-            <option value="">系统文件管理器</option>
-            {#each choices.list as option (option.value)}
-              <option value={option.value}>{option.label}</option>
-            {/each}
-            <option value={OPEN_WITH_CUSTOM}>自定义…</option>
-          </select>
+          />
 
           {#if showCustom}
             <input
@@ -139,6 +145,7 @@
               aria-label="自定义打开命令"
               placeholder={"例如 code 或 code -n {path}"}
               value={draft}
+              bind:this={customInput}
               oninput={(e) => (draft = e.currentTarget.value)}
               onfocus={() => (editing = true)}
               onblur={commitCustom}
