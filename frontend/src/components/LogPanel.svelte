@@ -7,6 +7,30 @@
   /** 用户是否停留在底部。往上翻看历史时不能强行拽回去。 */
   let stickToBottom = $state(true);
 
+  /** 标签条要显示的东西：任务名、所属项目、运行时状态、有没有新输出。 */
+  const tabs = $derived(
+    app.logTabs.map((tab) => {
+      const project = app.projects.find((p) => p.id === tab.projectId);
+      const task = (project?.tasks ?? []).find((t) => t.id === tab.taskId);
+      return {
+        key: tab.key,
+        label: task?.label ?? tab.taskId,
+        project: project?.name ?? "",
+        title: project ? `${project.name} · ${task?.label ?? tab.taskId}` : (task?.label ?? tab.taskId),
+        state: app.runtimeOf(tab.projectId, tab.taskId)?.state ?? "idle",
+        unread: !!app.logUnread[tab.key],
+      };
+    }),
+  );
+
+  /**
+   * 标签跨项目时才带项目名。
+   *
+   * 同一个项目里「启动网页端」「启动小程序端」本身就够区分，前面再挂一遍
+   * 项目名纯属占地方；跨项目时才必须标明出处，否则同名任务分不清。
+   */
+  const multiProject = $derived(new Set(tabs.map((t) => t.project)).size > 1);
+
   const target = $derived.by(() => {
     const active = app.activeLog;
     if (!active) return null;
@@ -43,6 +67,16 @@
     });
   });
 
+  // 切标签相当于换了一份输出：直接跳到新标签的底部。
+  // 不能沿用上一个标签的滚动位置——从「翻着历史」切过去会落在新日志中段。
+  $effect(() => {
+    void app.activeLogKey;
+    stickToBottom = true;
+    void tick().then(() => {
+      if (bodyEl) bodyEl.scrollTop = bodyEl.scrollHeight;
+    });
+  });
+
   function onScroll(): void {
     const el = bodyEl;
     if (!el) return;
@@ -52,6 +86,39 @@
 
 {#if target}
   <aside class="log-drawer" aria-label="运行日志">
+    <div class="log-tabs" role="tablist" aria-label="日志标签">
+      {#each tabs as tab (tab.key)}
+        <div class="log-tab" class:is-active={tab.key === app.activeLogKey}>
+          <button
+            class="log-tab-main"
+            role="tab"
+            aria-selected={tab.key === app.activeLogKey}
+            title={tab.title}
+            onclick={() => app.activateLog(tab.key)}
+          >
+            <span class="dot {tab.state}"></span>
+            {#if multiProject && tab.project}
+              <span class="log-tab-proj">{tab.project}</span>
+            {/if}
+            <span class="log-tab-name">{tab.label}</span>
+            {#if tab.unread}
+              <span class="log-tab-new" title="有新输出"></span>
+            {/if}
+          </button>
+          <button
+            class="log-tab-close"
+            aria-label={`关闭 ${tab.label} 的日志标签`}
+            title="关闭"
+            onclick={() => app.closeLogTab(tab.key)}
+          >
+            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+              <line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" />
+            </svg>
+          </button>
+        </div>
+      {/each}
+    </div>
+
     <header class="log-head">
       <span class="state {runState}">
         <span class="dot"></span>
