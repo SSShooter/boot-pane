@@ -611,6 +611,25 @@ class AppState {
     }
   }
 
+  /**
+   * 任务对应的页面地址，空串表示这个任务没有可打开的页面。
+   *
+   * 地址由 Go 侧统一解析（显式 openUrl 或前端任务按端口兜底）后随项目下发，
+   * 前端不重复实现一套判定，免得多出一个按钮点不开。
+   */
+  pageUrlOf(projectId: string, taskId: string): string {
+    const p = this.projects.find((x) => x.id === projectId);
+    return p?.pageUrls?.[taskId] ?? "";
+  }
+
+  async openTaskPage(projectId: string, taskId: string): Promise<void> {
+    try {
+      await api.openTaskPage(projectId, taskId);
+    } catch (e) {
+      this.notify(describeError(e), true);
+    }
+  }
+
   /** 切换配置来源：全局注册表 ↔ 仓库内 .bootpane.json。 */
   async setUseRepoConfig(id: string, enabled: boolean): Promise<void> {
     try {

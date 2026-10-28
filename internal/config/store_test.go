@@ -645,6 +645,9 @@ func TestBuildPromptMentionsProjectPath(t *testing.T) {
 	if !strings.Contains(prompt, "env") {
 		t.Error("prompt 里应说明 env 字段，否则模型会把 PORT=xxx 写进 command")
 	}
+	if !strings.Contains(prompt, "openUrl") {
+		t.Error("prompt 里应说明 openUrl，否则模型不会显式给出页面地址")
+	}
 }
 
 // 描述和项目名要出现在 prompt 的输出结构里，否则模型不会给，

@@ -75,6 +75,29 @@ func (c *ConfigService) OpenConfigDir() error {
 	return revealPath(c.store.Dir())
 }
 
+// OpenTaskPage 在系统默认浏览器里打开任务对应的页面。
+//
+// 地址解析复用 config.Task.PageURL，和前端决定「要不要显示按钮」是同一套
+// 规则，不会出现按钮点下去却打不开的情况。前端没传地址而是传任务 id，
+// 也是为了让配置改了之后行为跟着变，不用两边各存一份 URL。
+func (c *ConfigService) OpenTaskPage(id, taskID string) error {
+	p, err := c.store.Get(id)
+	if err != nil {
+		return err
+	}
+	for _, t := range p.Tasks {
+		if t.ID != taskID {
+			continue
+		}
+		page := t.PageURL()
+		if page == "" {
+			return fmt.Errorf("任务 %q 没有可打开的页面", t.Label)
+		}
+		return openExternalURL(page)
+	}
+	return fmt.Errorf("任务 %q 不存在", taskID)
+}
+
 // ConfigFilePath 返回注册表文件路径，界面上用于展示。
 func (c *ConfigService) ConfigFilePath() string {
 	return c.store.FilePath()

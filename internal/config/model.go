@@ -4,6 +4,12 @@
 // 应该跟代码一起走、供团队共享。
 package config
 
+import (
+	"fmt"
+	"net/url"
+	"strings"
+)
+
 // 配置来源。两者二选一，不叠加。
 const (
 	SourceGlobal = "global" // 来自全局注册表，默认行为
@@ -108,7 +114,7 @@ type Task struct {
 	// WaitFor 定义「什么算启动完成」。没有它就只能靠猜。
 	WaitFor *WaitFor `json:"waitFor,omitempty"`
 
-	OpenURL   string `json:"openUrl,omitempty"`   // 就绪后自动打开
+	OpenURL   string `json:"openUrl,omitempty"`   // 页面地址，配了就在卡片上显示「打开页面」
 	Singleton *bool  `json:"singleton,omitempty"` // 默认 true，防止同一按钮起两份
 	AutoStart bool   `json:"autoStart,omitempty"`
 }
@@ -116,6 +122,67 @@ type Task struct {
 // SingletonEnabled 返回是否禁止重复启动，未显式配置时默认为 true。
 func (t Task) SingletonEnabled() bool {
 	return t.Singleton == nil || *t.Singleton
+}
+
+// frontendHints 是判断「这条任务能直接用浏览器看」的关键词。
+//
+// 只扫 id / label / group，不扫 command：`go run ./cmd/web` 这种后端命令里
+// 同样有 web，按命令匹配会把 API 也挂上「打开页面」。关键词只是兜底，
+// 准确的做法是让模型在生成配置时显式写 openUrl（prompt 里已经要求了）。
+var frontendHints = []string{
+	"前端", "网页", "web", "frontend", "front-end", "h5",
+	"vite", "vue", "react", "svelte", "nuxt", "next", "angular", "astro",
+}
+
+// backendHints 优先于 frontendHints 判断。
+//
+// 「启动 Web API」这类任务同时命中了 web，但它返回的是 JSON，不该挂页面按钮。
+// 宁可漏掉一个，也不要在 API 上放一个点开只有一坨花括号的按钮。
+var backendHints = []string{"后端", "服务端", "api", "mock"}
+
+// IsFrontend 判断任务是不是一个能对着浏览器看的页面入口。
+func (t Task) IsFrontend() bool {
+	haystack := strings.ToLower(t.ID + " " + t.Label + " " + t.Group)
+	for _, hint := range backendHints {
+		if strings.Contains(haystack, hint) {
+			return false
+		}
+	}
+	for _, hint := range frontendHints {
+		if strings.Contains(haystack, hint) {
+			return true
+		}
+	}
+	return false
+}
+
+// PageURL 返回任务对应的网页地址，解析不出时返回空串。
+//
+// 显式配置的 openUrl 优先：反代后的域名、https、带路径的地址都没法从端口
+// 推导出来。没配时才在前端类任务 + 监听端口的情况下用 http://localhost:<port>
+// 兜底——后端 API 也监听端口，给它们挂一个打开按钮只会误导用户。
+func (t Task) PageURL() string {
+	if u := strings.TrimSpace(t.OpenURL); u != "" {
+		if IsHTTPURL(u) {
+			return u
+		}
+		// 显式配了但地址不合法：不挂按钮，Validate 里会给出提示。
+		// 这里不能退回端口推导，否则用户改了地址却看不到任何变化。
+		return ""
+	}
+	if !t.IsFrontend() || t.WaitFor == nil || t.WaitFor.Type != WaitPort || t.WaitFor.Port <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("http://localhost:%d", t.WaitFor.Port)
+}
+
+// IsHTTPURL 判断是不是可以直接交给浏览器打开的 http(s) 地址。
+//
+// 配置来自 JSON，不能拿 file:// 或自定义协议去塞给系统，否则等于给配置
+// 文件开了一个任意程序启动的口子。
+func IsHTTPURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != ""
 }
 
 // WaitFor 描述就绪判定条件。
@@ -154,6 +221,10 @@ type ResolvedProject struct {
 	// StarredTaskIDs 是本项目下被星标的任务 id。
 	// 前端用它判断哪张卡片是星标，跨项目聚合时也靠它筛选。
 	StarredTaskIDs []string `json:"starredTaskIds"`
+	// PageURLs 是「任务 id → 网页地址」，只包含能解析出地址的任务。
+	// 前端据此决定要不要显示「打开页面」按钮，规则和 OpenTaskPage 共用一份，
+	// 不会出现按钮显示着却打不开的情况。
+	PageURLs map[string]string `json:"pageUrls,omitempty"`
 }
 
 // Issue 是校验阶段发现的问题。error 级会阻止启动，warn 级只提示。

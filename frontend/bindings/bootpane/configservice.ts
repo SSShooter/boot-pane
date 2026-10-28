@@ -94,6 +94,17 @@ export function OpenProjectDir(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * OpenTaskPage 在系统默认浏览器里打开任务对应的页面。
+ * 
+ * 地址解析复用 config.Task.PageURL，和前端决定「要不要显示按钮」是同一套
+ * 规则，不会出现按钮点下去却打不开的情况。前端没传地址而是传任务 id，
+ * 也是为了让配置改了之后行为跟着变，不用两边各存一份 URL。
+ */
+export function OpenTaskPage(id: string, taskID: string): $CancellablePromise<void> {
+    return $Call.ByID(2380570749, id, taskID);
+}
+
+/**
  * RemoveProject 从注册表移除项目，不影响磁盘上的仓库。
  */
 export function RemoveProject(id: string): $CancellablePromise<void> {

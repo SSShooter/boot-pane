@@ -60,6 +60,7 @@ cd frontend && npm run dev   # http://127.0.0.1:9245
       "cwd": ".",                  // 相对项目根目录
       "env": { "PORT": "5173" },
       "waitFor": { "type": "port", "port": 5173, "timeout": 60 },
+      "openUrl": "http://localhost:5173",  // 配了就在卡片上显示「打开页面」按钮
       "singleton": true            // 默认 true，防止同一按钮起两份
     },
     {
@@ -78,6 +79,8 @@ cd frontend && npm run dev   # http://127.0.0.1:9245
 ```
 
 `waitFor` 是这里最关键的一个字段：它定义了「什么算启动完成」。没有它就只能够靠 `sleep 3` 猜，而猜是不准的——端口没起来就启动下一个，下一个必然失败。
+
+`openUrl` 是任务的页面地址。配了之后卡片标题旁会出现一个「打开页面」按钮，启动完服务直接点开就行。前端类任务（group/label/id 里带「前端」「网页」「web」「h5」这类词）即使不配，也会按 `waitFor.port` 兜底成 `http://localhost:<port>`；但 https、反向代理后的域名、带路径的地址（如 `/admin`）只能显式写。
 
 `project.name` 和 `project.description` 是模型生成配置时一并给出的项目元信息：导入时会写进项目（名称显示在侧栏和标题，描述显示在标题下），模型省略或给了空值时保留原值。标签不在这份输出约定里，导入不会改动它；在编辑框里保存则以框里为准，删空就是删空。
 

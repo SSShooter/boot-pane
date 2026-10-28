@@ -356,7 +356,23 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 	}
 
 	rp.Issues = append(rp.Issues, Validate(&rp)...)
+	rp.PageURLs = pageURLs(rp.Tasks)
 	return rp
+}
+
+// pageURLs 为每个能解析出地址的任务生成一份映射。
+// 没有可打开的页面时返回 nil，序列化后前端拿到的是 null 而不是空对象。
+func pageURLs(tasks []Task) map[string]string {
+	out := make(map[string]string, len(tasks))
+	for _, t := range tasks {
+		if u := t.PageURL(); u != "" {
+			out[t.ID] = u
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // Settings 返回本机偏好的副本。
