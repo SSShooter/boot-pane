@@ -533,9 +533,8 @@ input {
 
 /* ---------- 星标 ---------- */
 
-/* 星标按钮常驻占位但默认透明，卡片 hover 才显形，
-   免得一屏卡片右侧挂满星星。用 opacity 而不是 display，
-   否则显隐会让标题可用宽度变化、文字省略号位置跟着跳。 */
+/* 星标按钮常驻显示，不再靠卡片 hover 才显形：
+   星标是跨项目的常用操作，藏起来用户根本发现不了。 */
 .star-btn {
   flex: none;
   display: inline-flex;
@@ -545,14 +544,12 @@ input {
   height: 20px;
   border-radius: 5px;
   color: var(--text-faint);
-  opacity: 0;
-  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+  transition: color 0.12s ease, background 0.12s ease;
 }
 
-.task-card:hover .star-btn,
-.star-btn:focus-visible,
-.star-btn.is-on {
-  opacity: 1;
+.star-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .star-btn:hover {
@@ -570,8 +567,8 @@ input {
   color: var(--star-ink);
 }
 
-/* 「打开页面」按钮常驻显示，不像星标那样 hover 才显形：
-   它是这类任务最常用的动作，藏起来等于没有入口。 */
+/* 「打开页面」按钮常驻显示：它是这类任务最常用的动作，
+   藏起来等于没有入口。 */
 .page-btn {
   flex: none;
   display: inline-flex;
