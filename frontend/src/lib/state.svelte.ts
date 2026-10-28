@@ -85,6 +85,14 @@ export type ConfirmRequest = {
 /** 一个任务的日志：带样式的片段 + 当前字符数（裁剪时要判断，别每次重算）。 */
 type LogBuffer = { runs: LogRun[]; chars: number };
 
+/**
+ * 一个日志标签页。
+ *
+ * 只记位置不记内容：日志本体在 logs 里，标签说清「看的是哪个任务的日志」。
+ * key 存下来是因为它要参与比较（激活、未读），每次现拼不划算。
+ */
+export type LogTab = { key: string; projectId: string; taskId: string };
+
 /** 空日志的稳定引用，避免每次派生都造新数组把渲染搅乱。 */
 const EMPTY_RUNS: LogRun[] = [];
 
@@ -112,8 +120,24 @@ class AppState {
    * 这段时间按钮必须锁住，否则用户连点会反复杀进程。
    */
   restarting = $state<Record<string, boolean>>({});
-  /** 当前打开日志面板的任务，null 表示面板关闭。 */
-  activeLog = $state<{ projectId: string; taskId: string } | null>(null);
+  /**
+   * 打开过的日志标签，顺序即标签条的显示顺序。
+   *
+   * 只有用户主动关标签才会移除。启动新任务时新标签顶到最前看着，
+   * 旧标签留着——对照几个应用的输出是这类工具最常见的用法。
+   */
+  logTabs = $state<LogTab[]>([]);
+  /** 当前选中的标签 key（`projectId/taskId`）。收起抽屉时保留，展开能回到原位。 */
+  logKey = $state("");
+  /** 日志抽屉是否展开。有标签但收起时，侧栏的「日志」入口能再打开。 */
+  logOpen = $state(false);
+  /**
+   * 不是当前标签的任务又输出了内容。
+   *
+   * 没有这个标记，切过去才发现前后两段接不上；有了它，标签上的小点
+   * 能告诉用户「这条后面还有没看的东西」。
+   */
+  logUnread = $state<Record<string, boolean>>({});
 
   selectedId = $state("");
   loading = $state(true);
@@ -204,9 +228,13 @@ class AppState {
   /** 是否有确认框正开着（键盘处理要据此让路，否则 Esc 会被抢两次）。 */
   confirmOpen = $derived(this.confirmRequest !== null);
 
-  activeLogKey = $derived(
-    this.activeLog ? taskKey(this.activeLog.projectId, this.activeLog.taskId) : "",
-  );
+  /** 当前标签对应的任务；抽屉收起时为 null，面板据此整块不渲染。 */
+  activeLog = $derived.by(() => {
+    if (!this.logOpen || !this.logKey) return null;
+    return this.logTabs.find((t) => t.key === this.logKey) ?? null;
+  });
+
+  activeLogKey = $derived(this.activeLog?.key ?? "");
 
   /** 当前日志面板要渲染的片段。 */
   activeLogRuns = $derived(
@@ -433,6 +461,14 @@ class AppState {
     const runs = mergeRuns(prev?.runs ?? EMPTY_RUNS, fresh);
     const chars = (prev?.chars ?? 0) + countRuns(fresh);
     this.logs = { ...this.logs, [key]: trimRuns(runs, chars, MAX_LOG_CHARS) };
+
+    // 后台标签有新输出就打个未读标记。只对开着的标签做——没标签的任务
+    // 没人会去看，标了也没地方显示。抽屉收起时当前标签同样算「看不着」。
+    if (!this.logUnread[key] && (!this.logOpen || this.logKey !== key)) {
+      if (this.logTabs.some((t) => t.key === key)) {
+        this.logUnread = { ...this.logUnread, [key]: true };
+      }
+    }
   }
 
   /** 整体替换某个任务的日志（从后端补一次历史输出时用）。 */
@@ -578,12 +614,20 @@ class AppState {
     this.notify(`已停止 ${targets.length} 个星标任务`);
   }
 
-  /** 打开某个任务的日志面板。 */
+  /**
+   * 打开某个任务的日志。
+   *
+   * 已有标签就切过去，没有就新开一个——启动新应用时也走这里「抢占」当前视图，
+   * 旧标签不会丢，切回去还在。前端没攒到内容（比如窗口刚重载）时，顺手从
+   * 后端环形缓冲补一次历史。
+   */
   async openLog(projectId: string, taskId: string): Promise<void> {
-    this.activeLog = { projectId, taskId };
     const key = taskKey(projectId, taskId);
+    if (!this.logTabs.some((t) => t.key === key)) {
+      this.logTabs = [...this.logTabs, { key, projectId, taskId }];
+    }
+    this.activateLog(key);
 
-    // 前端没攒到内容（比如窗口刚重载）时，从后端环形缓冲补一次历史。
     if (this.logs[key]?.chars) return;
     try {
       const text = await api.getTaskLog(projectId, taskId);
@@ -597,13 +641,68 @@ class AppState {
     }
   }
 
-  closeLog(): void {
-    this.activeLog = null;
+  /** 切到一个已打开的标签并展开抽屉，同时清掉它的未读标记。 */
+  activateLog(key: string): void {
+    this.logKey = key;
+    this.logOpen = true;
+    if (this.logUnread[key]) {
+      const unread = { ...this.logUnread };
+      delete unread[key];
+      this.logUnread = unread;
+    }
   }
 
+  /** 收起抽屉。标签保留，下次展开还能回到这一条。 */
+  closeLog(): void {
+    this.logOpen = false;
+  }
+
+  /** 展开抽屉：回到上次看的那条日志，没有就取第一个标签。 */
+  showLog(): void {
+    if (this.logTabs.length === 0) return;
+    const kept = this.logTabs.some((t) => t.key === this.logKey);
+    this.activateLog(kept ? this.logKey : this.logTabs[0].key);
+  }
+
+  /** 抽屉开关，侧栏入口走这里。 */
+  toggleLog(): void {
+    if (this.logOpen) this.closeLog();
+    else this.showLog();
+  }
+
+  /**
+   * 关掉一个标签。
+   *
+   * 关掉的正是当前这条时，接管它右边那条（到头了就接管左边），用户连点几下
+   * 关标签时视线不用来回跳；关到一条不剩就把抽屉收起来。
+   */
+  closeLogTab(key: string): void {
+    const idx = this.logTabs.findIndex((t) => t.key === key);
+    if (idx < 0) return;
+
+    const rest = this.logTabs.filter((t) => t.key !== key);
+    this.logTabs = rest;
+
+    if (this.logUnread[key]) {
+      const unread = { ...this.logUnread };
+      delete unread[key];
+      this.logUnread = unread;
+    }
+
+    if (rest.length === 0) {
+      this.logKey = "";
+      this.logOpen = false;
+      return;
+    }
+    if (this.logKey === key) {
+      this.activateLog(rest[Math.min(idx, rest.length - 1)].key);
+    }
+  }
+
+  /** 清空当前标签的日志内容。标签本身留着——用户要的是重新看一遍输出。 */
   clearLog(): void {
-    if (!this.activeLog) return;
-    this.resetLog(taskKey(this.activeLog.projectId, this.activeLog.taskId));
+    if (!this.activeLogKey) return;
+    this.resetLog(this.activeLogKey);
   }
 
   async addProject(path: string): Promise<void> {
@@ -622,11 +721,32 @@ class AppState {
     try {
       await api.removeProject(id);
       if (this.selectedId === id) this.selectedId = "";
-      if (this.activeLog?.projectId === id) this.closeLog();
+      this.dropProjectLogs(id);
       await this.load();
       this.notify("已从列表移除（磁盘文件未受影响）");
     } catch (e) {
       this.notify(describeError(e), true);
+    }
+  }
+
+  /**
+   * 项目被移除后，收掉它开着的标签、日志和未读标记。
+   *
+   * 留着这些标签没有意义：任务已经查不到了，标签上只能显示 id，
+   * 点开也只有一段再也不会增长的旧输出。
+   */
+  private dropProjectLogs(projectId: string): void {
+    const dropped = this.logTabs.filter((t) => t.projectId === projectId);
+    if (dropped.length === 0) return;
+
+    for (const t of dropped) {
+      this.resetLog(t.key);
+      delete this.logUnread[t.key];
+    }
+    this.logTabs = this.logTabs.filter((t) => t.projectId !== projectId);
+    if (!this.logTabs.some((t) => t.key === this.logKey)) {
+      this.logKey = "";
+      this.logOpen = false;
     }
   }
 
@@ -696,7 +816,7 @@ class AppState {
    * 启动任务，返回是否成功（批量启动要据此统计失败数）。
    *
    * autoLog 控制「启动后自动展开日志」这条偏好。批量启动传 false：
-   * 连着弹几个任务的面板只会让它来回跳，用户要的是「都起来了吗」，
+   * 连着弹几个任务的标签只会让它来回跳，用户要的是「都起来了吗」，
    * 不是逐个看日志。
    */
   async startTask(projectId: string, taskId: string, autoLog = true): Promise<boolean> {
@@ -708,8 +828,10 @@ class AppState {
       await api.startTask(projectId, taskId);
       await this.refreshRuntimes();
 
-      // 已经开着别的任务的面板时不抢占：用户正看着日志，被切走比不弹更烦。
-      if (autoLog && this.settings.autoOpenLogOnStart && !this.activeLog) {
+      // 新起来的应用抢占当前视图：就算正看着别人的日志也切过去。
+      // 标签化之后这一步不再有代价——旧的输出留在它自己的标签里，
+      // 想对照随时切回去，被切走不会丢任何东西。
+      if (autoLog && this.settings.autoOpenLogOnStart) {
         void this.openLog(projectId, taskId);
       }
       return true;
@@ -748,6 +870,8 @@ class AppState {
       if (res?.ok) {
         const n = res.killed?.length ?? 0;
         this.notify(n > 0 ? `已终止 ${n} 个进程，正在重启` : "已重启");
+        // 重启也是一次「新实例启动」，和启动走同一条抢占规则。
+        if (this.settings.autoOpenLogOnStart) void this.openLog(projectId, taskId);
       } else {
         this.notify(res?.message || "重启失败", true);
       }

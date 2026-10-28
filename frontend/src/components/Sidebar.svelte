@@ -125,6 +125,16 @@
   <div class="rail-foot">
     <span>{app.projects.length} 个项目</span>
     <span class="foot-links">
+      {#if app.logTabs.length > 0}
+        <button
+          class="link-btn"
+          class:is-on={app.logOpen}
+          title="展开运行日志（之前打开的标签都还在）"
+          onclick={() => app.toggleLog()}
+        >
+          日志 {app.logTabs.length}
+        </button>
+      {/if}
       <button class="link-btn" onclick={() => app.openConfigDir()}>配置目录</button>
       <button class="link-btn" class:is-on={app.showSettings} onclick={() => app.openSettings()}>
         设置
