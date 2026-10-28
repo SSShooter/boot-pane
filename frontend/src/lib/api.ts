@@ -24,6 +24,8 @@ export interface Api {
   removeProject(id: string): Promise<void>;
   openProjectDir(id: string): Promise<void>;
   openConfigDir(): Promise<void>;
+  /** 用系统浏览器打开任务对应的页面（openUrl 或按端口兜底）。 */
+  openTaskPage(projectId: string, taskId: string): Promise<void>;
   setUseRepoConfig(id: string, enabled: boolean): Promise<void>;
   /** 设置任务星标。只写本机注册表，不碰仓库配置。 */
   setStar(projectId: string, taskId: string, starred: boolean): Promise<void>;
@@ -62,6 +64,7 @@ const realApi: Api = {
   removeProject: (id) => ConfigService.RemoveProject(id),
   openProjectDir: (id) => ConfigService.OpenProjectDir(id),
   openConfigDir: () => ConfigService.OpenConfigDir(),
+  openTaskPage: (projectId, taskId) => ConfigService.OpenTaskPage(projectId, taskId),
   setUseRepoConfig: (id, enabled) => ConfigService.SetUseRepoConfig(id, enabled),
   setStar: (projectId, taskId, starred) => ConfigService.SetStar(projectId, taskId, starred),
   buildConfigPrompt: (id) => ConfigService.BuildConfigPrompt(id),

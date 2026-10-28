@@ -47,6 +47,11 @@ func Validate(rp *ResolvedProject) []Issue {
 				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: fmt.Sprintf("工作目录不存在: %s", t.Cwd)})
 			}
 		}
+		// openUrl 只影响卡片上那个按钮，写错不拦启动，但要让用户知道
+		// 为什么按钮没出现。
+		if raw := strings.TrimSpace(t.OpenURL); raw != "" && !IsHTTPURL(raw) {
+			issues = append(issues, Issue{Level: "warn", TaskID: t.ID, Message: fmt.Sprintf("openUrl 不是合法的 http(s) 地址: %s", raw)})
+		}
 		for _, dep := range t.DependsOn {
 			if _, ok := ids[dep]; !ok {
 				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: fmt.Sprintf("依赖的任务 %q 不存在", dep)})

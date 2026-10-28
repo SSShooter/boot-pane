@@ -34,6 +34,7 @@ const uniAppProject: ResolvedProject = {
       group: "前端",
       command: "pnpm dev:h5",
       waitFor: { type: "port", port: 5173 } as any,
+      openUrl: "http://localhost:5173",
     }),
     task({
       id: "mp-weixin",
@@ -55,6 +56,7 @@ const uniAppProject: ResolvedProject = {
   pipelines: [{ id: "all", label: "全启", tasks: ["web", "mp-weixin"], mode: "serial" }],
   issues: [],
   starredTaskIds: ["web", "mock"],
+  pageUrls: { web: "http://localhost:5173" },
 } as ResolvedProject;
 
 const backendProject: ResolvedProject = {
@@ -173,6 +175,8 @@ export const mockApi = {
   async removeProject(): Promise<void> {},
   async openProjectDir(): Promise<void> {},
   async openConfigDir(): Promise<void> {},
+  /** 浏览器预览里没有系统默认浏览器可调，空实现；按钮照常显示，方便调样式。 */
+  async openTaskPage(): Promise<void> {},
   async setUseRepoConfig(): Promise<void> {
     throw new Error("浏览器预览模式：无法切换配置来源");
   },

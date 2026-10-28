@@ -37,6 +37,33 @@
 
   const restarting = $derived(!!app.restarting[`${projectId}/${task.id}`]);
 
+  /** 这个任务对应的页面地址，空串表示不是网页类任务。 */
+  const pageUrl = $derived(app.pageUrlOf(projectId, task.id));
+
+  /**
+   * 页面是不是该可点。
+   *
+   * 显式配了 openUrl 的随时可开（可能是已部署的域名）；只有按端口推导出来的
+   * 地址才要求服务真的在跑——否则点了只会看到一个打不开的标签页。
+   */
+  const pageReady = $derived(
+    !!pageUrl && (!!task.openUrl?.trim() || busy || !!portInfo?.listening),
+  );
+
+  /**
+   * 打开页面。
+   *
+   * 没就绪时不禁用按钮：禁用状态在部分浏览器里连 tooltip 都不弹，用户只会
+   * 看到一个灰掉的图标却不知道原因。改成点了给一句提示，至少能说清状况。
+   */
+  function openPage(): void {
+    if (!pageReady) {
+      app.notify(`「${task.label}」还没就绪，等服务起来再打开`);
+      return;
+    }
+    void app.openTaskPage(projectId, task.id);
+  }
+
   /**
    * 重启外部实例前必须二次确认。
    *
@@ -93,6 +120,30 @@
       <span class="proj-badge" title={`来自项目 ${showProject}`}>{showProject}</span>
     {/if}
     <span class="task-label" title={task.label}>{task.label}</span>
+    {#if pageUrl}
+      <button
+        class="page-btn"
+        class:is-idle={!pageReady}
+        title={`在浏览器中打开 ${pageUrl}`}
+        aria-label="在浏览器中打开页面"
+        onclick={openPage}
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M14 4h6v6" />
+          <path d="M20 4l-9 9" />
+          <path d="M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
+        </svg>
+      </button>
+    {/if}
     <button
       class="star-btn"
       class:is-on={starred}

@@ -77,6 +77,13 @@ export interface ResolvedProject {
      * 前端用它判断哪张卡片是星标，跨项目聚合时也靠它筛选。
      */
     "starredTaskIds": string[] | null;
+
+    /**
+     * PageURLs 是「任务 id → 网页地址」，只包含能解析出地址的任务。
+     * 前端据此决定要不要显示「打开页面」按钮，规则和 OpenTaskPage 共用一份，
+     * 不会出现按钮显示着却打不开的情况。
+     */
+    "pageUrls"?: { [_ in string]?: string } | null;
 }
 
 /**
@@ -137,7 +144,7 @@ export interface Task {
     "waitFor"?: WaitFor | null;
 
     /**
-     * 就绪后自动打开
+     * 页面地址，配了就在卡片上显示「打开页面」
      */
     "openUrl"?: string;
 

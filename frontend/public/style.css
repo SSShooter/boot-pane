@@ -570,6 +570,31 @@ input {
   color: var(--star-ink);
 }
 
+/* 「打开页面」按钮常驻显示，不像星标那样 hover 才显形：
+   它是这类任务最常用的动作，藏起来等于没有入口。 */
+.page-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--text-faint);
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.page-btn:hover:not(.is-idle) {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/* 服务没起来时按端口推出来的地址打不开，按钮压暗提示「有页面，只是还没就绪」。
+   仍然可点：点下去会给一句为什么打不开，比一个不能交互的灰按钮有用。 */
+.page-btn.is-idle {
+  opacity: 0.35;
+}
+
 /* 聚合视图里标识任务来自哪个项目。名字可能很长，压到 45% 宽就省略，
    不能让它把任务标题挤没。 */
 .proj-badge {
