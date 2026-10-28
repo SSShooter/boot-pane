@@ -284,6 +284,34 @@ func TestSetAutoOpenLogOnStartPersists(t *testing.T) {
 	}
 }
 
+func TestSetOpenWithPersists(t *testing.T) {
+	s := newStore(t)
+
+	if err := s.SetOpenWith("  code  "); err != nil {
+		t.Fatal(err)
+	}
+	// 首尾空格没有意义，保存时要顺手清掉，否则每换一次设备就多一份脏数据。
+	if got := s.Settings().OpenWith; got != "code" {
+		t.Errorf("打开方式应被裁剪成 %q，得到 %q", "code", got)
+	}
+
+	reloaded := &Store{dir: s.dir}
+	if err := reloaded.load(); err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Settings().OpenWith; got != "code" {
+		t.Errorf("打开方式没有落盘，得到 %q", got)
+	}
+
+	// 空字符串表示回到系统文件管理器，同样要能存住。
+	if err := s.SetOpenWith(""); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Settings().OpenWith; got != "" {
+		t.Errorf("清空打开方式没有生效，得到 %q", got)
+	}
+}
+
 // 偏好存在注册表顶层，和项目、星标同级，不跟着仓库配置走。
 func TestSettingsSurviveRepoConfigMode(t *testing.T) {
 	repo := t.TempDir()

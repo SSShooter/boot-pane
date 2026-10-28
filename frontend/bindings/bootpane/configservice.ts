@@ -87,7 +87,7 @@ export function OpenConfigDir(): $CancellablePromise<void> {
 }
 
 /**
- * OpenProjectDir 在系统文件管理器里打开项目目录。
+ * OpenProjectDir 用系统文件管理器或设置里指定的编辑器打开项目目录。
  */
 export function OpenProjectDir(id: string): $CancellablePromise<void> {
     return $Call.ByID(2491419475, id);
@@ -116,6 +116,16 @@ export function SaveConfigJSON(id: string, raw: string): $CancellablePromise<con
  */
 export function SetAutoOpenLogOnStart(enabled: boolean): $CancellablePromise<void> {
     return $Call.ByID(3188749731, enabled);
+}
+
+/**
+ * SetOpenWith 设置「打开目录」使用的命令，传空字符串表示回到系统文件管理器。
+ * 
+ * 保存前先确认命令能找到：拼错的命令等到点按钮才报错，用户很难把错误
+ * 和设置页里那一行输入联系起来。
+ */
+export function SetOpenWith(command: string): $CancellablePromise<void> {
+    return $Call.ByID(1333917089, command);
 }
 
 /**

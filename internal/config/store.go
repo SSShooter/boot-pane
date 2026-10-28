@@ -387,6 +387,27 @@ func (s *Store) SetAutoOpenLogOnStart(enabled bool) error {
 	return nil
 }
 
+// SetOpenWith 设置「打开目录」使用的命令，空字符串表示回到系统文件管理器。
+//
+// 和 SetAutoOpenLogOnStart 一样幂等：值没变化就不写盘，写盘失败回滚内存。
+func (s *Store) SetOpenWith(command string) error {
+	command = strings.TrimSpace(command)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prev := s.ws.Settings.OpenWith
+	if prev == command {
+		return nil
+	}
+	s.ws.Settings.OpenWith = command
+	if err := s.save(); err != nil {
+		s.ws.Settings.OpenWith = prev
+		return err
+	}
+	return nil
+}
+
 // SetUseRepoConfig 切换某个项目的配置来源。
 func (s *Store) SetUseRepoConfig(id string, enabled bool) error {
 	s.mu.Lock()
