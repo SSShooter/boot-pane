@@ -11,7 +11,7 @@
     const active = app.activeLog;
     if (!active) return null;
     const project = app.projects.find((p) => p.id === active.projectId);
-    const task = project?.tasks.find((t) => t.id === active.taskId);
+    const task = (project?.tasks ?? []).find((t) => t.id === active.taskId);
     return {
       label: task?.label ?? active.taskId,
       command: task?.command ?? "",

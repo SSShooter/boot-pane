@@ -5,6 +5,7 @@ import type {
   Settings,
 } from "../../bindings/bootpane/internal/config/models";
 import type { Runtime } from "../../bindings/bootpane/internal/process/models";
+import type { Editor } from "../../bindings/bootpane/internal/editors/models";
 import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
 import type { RestartResult } from "../../bindings/bootpane/models";
 import { mockApi } from "./devmock";
@@ -41,6 +42,8 @@ export interface Api {
   setAutoOpenLogOnStart(enabled: boolean): Promise<void>;
   /** 设置「打开目录」用的命令，空串表示系统文件管理器。 */
   setOpenWith(command: string): Promise<void>;
+  /** 扫描本机装了哪些编辑器，供设置页直接选。 */
+  detectEditors(): Promise<Editor[]>;
   listRunning(): Promise<Runtime[]>;
   startTask(projectId: string, taskId: string): Promise<void>;
   stopTask(projectId: string, taskId: string): Promise<void>;
@@ -58,8 +61,15 @@ export interface Api {
   cancelQuit(): Promise<void>;
 }
 
+/**
+ * 真实后端适配层。
+ *
+ * Wails 生成的切片返回值都是 `T[] | null`（对应 Go 的 nil slice），而界面里
+ * 几乎每处都要遍历这些列表。统一在这里折成空数组，调用方就不用每处判空，
+ * 也不会因为后端返回 null 在渲染时炸掉。
+ */
 const realApi: Api = {
-  listProjects: () => ConfigService.ListProjects(),
+  listProjects: async () => (await ConfigService.ListProjects()) ?? [],
   addProject: (path) => ConfigService.AddProject(path),
   removeProject: (id) => ConfigService.RemoveProject(id),
   openProjectDir: (id) => ConfigService.OpenProjectDir(id),
@@ -74,11 +84,12 @@ const realApi: Api = {
   getSettings: () => ConfigService.GetSettings(),
   setAutoOpenLogOnStart: (enabled) => ConfigService.SetAutoOpenLogOnStart(enabled),
   setOpenWith: (command) => ConfigService.SetOpenWith(command),
-  listRunning: () => ProcessService.ListRunning(),
+  detectEditors: async () => (await ConfigService.DetectEditors()) ?? [],
+  listRunning: async () => (await ProcessService.ListRunning()) ?? [],
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),
   getTaskLog: (projectId, taskId) => ProcessService.TaskLog(projectId, taskId),
-  checkPorts: (ports) => ProcessService.CheckPorts(ports),
+  checkPorts: async (ports) => (await ProcessService.CheckPorts(ports)) ?? [],
   restartTask: (projectId, taskId) => ProcessService.RestartTask(projectId, taskId),
   acknowledgeClose: () => AppService.AcknowledgeClose(),
   confirmQuit: () => AppService.ConfirmQuit(),

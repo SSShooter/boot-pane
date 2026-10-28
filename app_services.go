@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bootpane/internal/config"
+	"bootpane/internal/editors"
 	"bootpane/internal/portinfo"
 	"bootpane/internal/process"
 	"bootpane/internal/prockill"
@@ -68,6 +69,14 @@ func (c *ConfigService) SetOpenWith(command string) error {
 		}
 	}
 	return c.store.SetOpenWith(command)
+}
+
+// DetectEditors 扫描本机装了哪些编辑器，供设置页直接选。
+//
+// 每次调用都重新扫，不做缓存：用户刚装完编辑器就来点「重新扫描」，
+// 返回旧列表比返回空列表更让人困惑。探测本身只是若干次 PATH 查找和 stat。
+func (c *ConfigService) DetectEditors() []editors.Editor {
+	return editors.Detect()
 }
 
 // OpenConfigDir 打开全局配置所在目录。

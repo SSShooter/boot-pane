@@ -3,6 +3,7 @@ import type {
   ResolvedProject,
   Task,
 } from "../../bindings/bootpane/internal/config/models";
+import type { Editor } from "../../bindings/bootpane/internal/editors/models";
 
 /**
  * 在纯浏览器里（vite dev，没有 Wails 运行时）使用的假数据。
@@ -165,6 +166,17 @@ const mockOccupied: Record<number, { pid: number; process: string }> = {
 /** 预览模式下的本机偏好，只存在内存里，刷新页面就回到默认值。 */
 const mockSettings = { autoOpenLogOnStart: false, openWith: "" };
 
+/**
+ * 预览模式下的「已安装编辑器」。
+ *
+ * 浏览器里扫不到真实环境，给两个最常见的，保证设置页的下拉框和按钮文案
+ * 有内容可调。
+ */
+const mockEditors: Editor[] = [
+  { id: "vscode", name: "VS Code", command: "code", source: "path" },
+  { id: "cursor", name: "Cursor", command: "cursor", source: "path" },
+];
+
 export const mockApi = {
   async listProjects(): Promise<ResolvedProject[]> {
     return mockProjects;
@@ -184,7 +196,7 @@ export const mockApi = {
   async setStar(projectId: string, taskId: string, starred: boolean): Promise<void> {
     const p = mockProjects.find((x) => x.id === projectId);
     if (!p) return;
-    const ids = p.starredTaskIds.filter((id) => id !== taskId);
+    const ids = (p.starredTaskIds ?? []).filter((id) => id !== taskId);
     p.starredTaskIds = starred ? [...ids, taskId] : ids;
   },
   async buildConfigPrompt(): Promise<string> {
@@ -240,7 +252,7 @@ export const mockApi = {
       p.description = parsed.project.description;
     }
     if (Array.isArray(parsed?.project?.tags)) p.tags = parsed.project.tags;
-    return { ok: true, imported: p.tasks.length, issues: [] };
+    return { ok: true, imported: (p.tasks ?? []).length, issues: [] };
   },
   async getSettings() {
     return { ...mockSettings };
@@ -250,6 +262,9 @@ export const mockApi = {
   },
   async setOpenWith(command: string): Promise<void> {
     mockSettings.openWith = command;
+  },
+  async detectEditors(): Promise<Editor[]> {
+    return mockEditors;
   },
   async listRunning() {
     return [...mockRuntimes.values()];
