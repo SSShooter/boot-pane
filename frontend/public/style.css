@@ -1247,6 +1247,21 @@ input {
   color: var(--text-faint);
 }
 
+/* 逐行清单：关闭提示里列正在跑的任务，比用顿号串成一句好扫。 */
+.confirm-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-wrap: break-word;
+}
+
+.confirm-list li::marker {
+  color: var(--text-faint);
+}
+
 /* 破坏性操作的确认按钮：实心红，和「移除 / 终止」这类动作对上。
    .btn-danger 只是 hover 变红（给卡片上的次要按钮用），这里是主按钮。 */
 .btn-danger-solid {

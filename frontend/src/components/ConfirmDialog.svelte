@@ -3,6 +3,15 @@
 
   const req = $derived(app.confirmRequest);
 
+  /**
+   * 正文和逐行清单是两个节点，aria-describedby 得把用到的 id 都带上。
+   */
+  const describedBy = $derived(
+    [req?.body ? "confirm-body" : "", req?.items?.length ? "confirm-items" : ""]
+      .filter(Boolean)
+      .join(" ") || undefined,
+  );
+
   let cancelBtn = $state<HTMLButtonElement | null>(null);
 
   /**
@@ -39,7 +48,7 @@
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
-      aria-describedby={req.body ? "confirm-body" : undefined}
+      aria-describedby={describedBy}
     >
       <header class="dialog-head">
         <h2 id="confirm-title">{req.title}</h2>
@@ -48,6 +57,13 @@
       <div class="dialog-body confirm-body">
         {#if req.body}
           <p class="confirm-text" id="confirm-body">{req.body}</p>
+        {/if}
+        {#if req.items?.length}
+          <ul class="confirm-list" id="confirm-items">
+            {#each req.items as item}
+              <li>{item}</li>
+            {/each}
+          </ul>
         {/if}
         {#if req.detail}
           <p class="confirm-detail">{req.detail}</p>

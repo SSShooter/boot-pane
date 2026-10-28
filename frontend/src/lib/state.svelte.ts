@@ -67,6 +67,12 @@ export type ConfirmRequest = {
   title: string;
   /** 主内容：动作本身和受影响的对象。 */
   body?: string;
+  /**
+   * 需要逐行列出的对象（比如正在运行的任务）。
+   *
+   * 塞进 body 里用顿号串成一句会很难扫，尤其是项目名长、任务多的时候。
+   */
+  items?: string[];
   /** 补充说明：后果、不可逆提示之类，视觉上弱化。 */
   detail?: string;
   confirmLabel?: string;
@@ -277,8 +283,9 @@ class AppState {
       title: "还有任务在运行",
       body:
         names.length > 0
-          ? `关闭会一并停止：${names.join("、")}。`
+          ? `关闭会一并停止以下 ${names.length} 个任务：`
           : `关闭会一并停止 ${tasks.length} 个正在运行的任务。`,
+      items: names,
       detail: "进程会被强制终止，没来得及落盘的构建产物或写入可能不完整。",
       confirmLabel: "停止并退出",
       cancelLabel: "取消",
