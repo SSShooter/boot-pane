@@ -1,13 +1,18 @@
 <script lang="ts">
-  import type { ResolvedProject } from "../../bindings/bootpane/internal/config/models";
+  import type { ResolvedProject, Task } from "../../bindings/bootpane/internal/config/models";
   import TaskCard from "./TaskCard.svelte";
   import { app } from "../lib/state.svelte";
 
   let { project }: { project: ResolvedProject } = $props();
 
+  // 后端返回的是 Go 的 nil slice，反序列化后可能是 null；组件里到处都要遍历
+  // 这两份列表，统一在这里折成空数组，避免每个用到的地方各写一次判空。
+  const tasks = $derived(project.tasks ?? []);
+  const tags = $derived(project.tags ?? []);
+
   const groups = $derived.by(() => {
-    const map = new Map<string, ResolvedProject["tasks"]>();
-    for (const t of project.tasks) {
+    const map = new Map<string, Task[]>();
+    for (const t of tasks) {
       const key = t.group?.trim() ?? "";
       const bucket = map.get(key);
       if (bucket) bucket.push(t);
@@ -16,8 +21,8 @@
     return [...map.entries()].map(([name, tasks]) => ({ name, tasks }));
   });
 
-  const errors = $derived(project.issues.filter((i) => i.level === "error"));
-  const warns = $derived(project.issues.filter((i) => i.level === "warn"));
+  const errors = $derived((project.issues ?? []).filter((i) => i.level === "error"));
+  const warns = $derived((project.issues ?? []).filter((i) => i.level === "warn"));
 
   /** 仓库里自带配置，但当前用的是全局配置——提醒用户可以切过去。 */
   const repoHint = $derived(project.exists && project.hasRepoConfig && !project.useRepoConfig);
@@ -63,9 +68,9 @@
         <div class="panel-desc">{project.description}</div>
       {/if}
       <div class="panel-path">{project.path}</div>
-      {#if project.tags.length > 0}
+      {#if tags.length > 0}
         <div class="tag-row">
-          {#each project.tags as tag}
+          {#each tags as tag}
             <span class="tag">{tag}</span>
           {/each}
         </div>
@@ -124,7 +129,7 @@
     </div>
   {/if}
 
-  {#if project.exists && project.tasks.length === 0}
+  {#if project.exists && tasks.length === 0}
     <div class="empty" style="height: auto; padding: 44px 0;">
       <div class="empty-icon">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">

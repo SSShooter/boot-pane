@@ -1,5 +1,6 @@
 import type { ResolvedProject } from "../../bindings/bootpane/internal/config/models";
 import type { Runtime } from "../../bindings/bootpane/internal/process/models";
+import type { Editor } from "../../bindings/bootpane/internal/editors/models";
 import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
 import { Events } from "@wailsio/runtime";
 import { api, isPreview } from "./api";
@@ -125,11 +126,28 @@ class AppState {
    */
   settings = $state({ autoOpenLogOnStart: false, openWith: "" });
 
+  /**
+   * 本机扫到的编辑器，设置页的「打开方式」只列这些。
+   *
+   * 空数组既表示「还没扫完」也表示「一个都没装」，两种情况下拉框都退回
+   * 内置预设——用户在装完编辑器之前，至少还能看到 VS Code 这类常见选项。
+   */
+  editors = $state<Editor[]>([]);
+
   /** 当前「打开目录」用的命令，空串表示系统文件管理器。 */
   openWith = $derived((this.settings.openWith ?? "").trim());
 
-  /** 「打开目录」按钮上的目标名，比如「VS Code」。 */
-  openWithLabel = $derived(openWithLabel(this.openWith));
+  /**
+   * 「打开目录」按钮上的目标名，比如「VS Code」。
+   *
+   * 先按扫描结果查：绝对路径形式的命令（`"C:\...\Trae.exe"`）从文件名
+   * 只能认出 `Trae.exe`，而扫描结果里存着完整名字。
+   */
+  openWithLabel = $derived.by(() => {
+    const command = this.openWith;
+    if (!command) return "系统文件管理器";
+    return this.editors.find((e) => e.command === command)?.name ?? openWithLabel(command);
+  });
 
   /** 当前打开「生成配置」弹窗的项目 id，null 表示弹窗关闭。 */
   generatorProjectId = $state<string | null>(null);
@@ -169,7 +187,7 @@ class AppState {
    */
   starredTasks = $derived(
     this.projects.flatMap((project) =>
-      project.tasks
+      (project.tasks ?? [])
         .filter((task) => (project.starredTaskIds ?? []).includes(task.id))
         .map((task) => ({ project, task })),
     ),
@@ -206,6 +224,10 @@ class AppState {
       if (!isPseudoView(this.selectedId) && !this.projects.some((p) => p.id === this.selectedId)) {
         this.selectedId = this.projects[0]?.id ?? "";
       }
+      // 编辑器扫描要走几十次 PATH 查找和目录读取，不等它：设置页是低频入口，
+      // 扫完之后列表自己会刷新，没必要为了它拖慢首屏。
+      void this.detectEditors();
+
       await Promise.all([this.refreshRuntimes(), this.refreshPorts(), this.loadSettings()]);
     } catch (e) {
       this.notify(describeError(e), true);
@@ -321,6 +343,19 @@ class AppState {
     }
   }
 
+  /**
+   * 扫一遍本机装了哪些编辑器。
+   *
+   * 失败就当没扫到：设置页还能手填命令，不值得为一次探测弹错误。
+   */
+  async detectEditors(): Promise<void> {
+    try {
+      this.editors = (await api.detectEditors()) ?? [];
+    } catch {
+      this.editors = [];
+    }
+  }
+
   /** 拉一次全量运行状态，用于首次加载和兜底对账。 */
   async refreshRuntimes(): Promise<void> {
     try {
@@ -344,7 +379,7 @@ class AppState {
   async refreshPorts(): Promise<void> {
     const wanted = new Set<number>();
     for (const project of this.projects) {
-      for (const task of project.tasks) {
+      for (const task of project.tasks ?? []) {
         const port = task.waitFor?.type === "port" ? (task.waitFor.port ?? 0) : 0;
         if (port > 0) wanted.add(port);
       }

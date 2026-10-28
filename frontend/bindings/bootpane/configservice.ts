@@ -13,6 +13,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as config$0 from "./internal/config/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as editors$0 from "./internal/editors/models.js";
 
 /**
  * AddProject 把一个目录登记为项目。
@@ -43,6 +46,16 @@ export function ConfigFilePath(): $CancellablePromise<string> {
  */
 export function ConfigJSON(id: string): $CancellablePromise<string> {
     return $Call.ByID(1383942991, id);
+}
+
+/**
+ * DetectEditors 扫描本机装了哪些编辑器，供设置页直接选。
+ * 
+ * 每次调用都重新扫，不做缓存：用户刚装完编辑器就来点「重新扫描」，
+ * 返回旧列表比返回空列表更让人困惑。探测本身只是若干次 PATH 查找和 stat。
+ */
+export function DetectEditors(): $CancellablePromise<editors$0.Editor[] | null> {
+    return $Call.ByID(2364451882);
 }
 
 /**

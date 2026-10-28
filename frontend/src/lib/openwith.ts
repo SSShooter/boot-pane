@@ -2,7 +2,7 @@
  * 「打开目录」用哪个程序。
  *
  * 设置里存的是一条完整命令行（空串表示系统文件管理器），这里只负责两件事：
- * 给设置页提供几个常用编辑器的一键选项，以及从命令行里认出「用什么打开」，
+ * 给设置页提供扫描不到编辑器时的兜底候选，以及从命令行里认出「用什么打开」，
  * 用于按钮上的文案。
  */
 
@@ -12,8 +12,13 @@ export type OpenWithPreset = {
   label: string;
 };
 
+/**
+ * 内置的常见编辑器，只在扫描不到任何结果时兜底。
+ *
+ * 正常路径是 editors 包的扫描结果——只列真正装了的。这份清单只保证浏览器
+ * 预览模式、或机器上一个都没扫到时下拉框仍然有内容可选。
+ */
 export const OPEN_WITH_PRESETS: OpenWithPreset[] = [
-  { value: "", label: "系统文件管理器" },
   { value: "code", label: "VS Code" },
   { value: "cursor", label: "Cursor" },
   { value: "idea", label: "IntelliJ IDEA" },

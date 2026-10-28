@@ -17,23 +17,24 @@
       (p) =>
         p.name.toLowerCase().includes(q) ||
         p.path.toLowerCase().includes(q) ||
-        p.tags.some((t) => t.toLowerCase().includes(q)),
+        (p.tags ?? []).some((t) => t.toLowerCase().includes(q)),
     );
   });
 
   /** 列表上的小圆点：目录丢失 > 配置错误 > 已配置任务 > 空。 */
   function dotClass(p: ResolvedProject): string {
     if (!p.exists) return "gone";
-    if (p.issues.some((i) => i.level === "error")) return "err";
-    if (p.tasks.length > 0) return "ok";
+    if ((p.issues ?? []).some((i) => i.level === "error")) return "err";
+    if ((p.tasks ?? []).length > 0) return "ok";
     return "";
   }
 
   function subtitle(p: ResolvedProject): string {
     if (!p.exists) return "目录不存在";
     if (p.configError) return "配置有误";
-    if (p.tasks.length === 0) return "未配置启动项";
-    return `${p.tasks.length} 个启动项`;
+    const count = (p.tasks ?? []).length;
+    if (count === 0) return "未配置启动项";
+    return `${count} 个启动项`;
   }
 
   async function pickFolder(): Promise<void> {
