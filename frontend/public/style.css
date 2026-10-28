@@ -297,15 +297,25 @@ input {
 }
 
 .panel {
-  padding: 26px 28px 40px;
+  /* 顶部留白交给 .panel-head 自己给：它要 sticky 贴顶，padding 得长在身上，
+     否则贴住之后面板上会空出 26px 白发。 */
+  padding: 0 28px 40px;
   max-width: 940px;
 }
 
+/* 头部钉在顶部，不跟着卡片一起滚走：项目名、配置来源、生成/编辑/打开/移除
+   这几个按钮无论滚到哪一屏都得够得着。左右负边距把底色铺满整个面板宽度，
+   卡片从底下滚过去时被盖住，不会在留白处露出一条。 */
 .panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  padding-bottom: 16px;
+  margin: 0 -28px;
+  padding: 26px 28px 16px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 
