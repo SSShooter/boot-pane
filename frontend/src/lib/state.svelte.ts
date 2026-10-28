@@ -6,6 +6,7 @@ import { api, isPreview } from "./api";
 import { EVENT_LOG, EVENT_RUNTIME, EVENT_STATS, taskKey } from "./events";
 import type { LogPayload, StatsPayload } from "./events";
 import { MAX_LOG_CHARS } from "./format";
+import { openWithLabel } from "./openwith";
 import { countRuns, createAnsiState, mergeRuns, parseAnsiChunk, trimRuns } from "./ansi";
 import type { AnsiState, LogRun } from "./ansi";
 
@@ -113,10 +114,16 @@ class AppState {
   /**
    * 本机偏好，镜像 workspace.json 顶层的那份数据。
    *
-   * 只有「这台机器上的习惯」放这里（星标、自动打开日志），
+   * 只有「这台机器上的习惯」放这里（星标、自动打开日志、用哪个编辑器开目录），
    * 项目级的配置永远走 workspace.json 里的项目条目或仓库内 .bootpane.json。
    */
-  settings = $state({ autoOpenLogOnStart: false });
+  settings = $state({ autoOpenLogOnStart: false, openWith: "" });
+
+  /** 当前「打开目录」用的命令，空串表示系统文件管理器。 */
+  openWith = $derived((this.settings.openWith ?? "").trim());
+
+  /** 「打开目录」按钮上的目标名，比如「VS Code」。 */
+  openWithLabel = $derived(openWithLabel(this.openWith));
 
   /** 当前打开「生成配置」弹窗的项目 id，null 表示弹窗关闭。 */
   generatorProjectId = $state<string | null>(null);
@@ -253,7 +260,10 @@ class AppState {
   async loadSettings(): Promise<void> {
     try {
       const st = await api.getSettings();
-      this.settings = { autoOpenLogOnStart: !!st?.autoOpenLogOnStart };
+      this.settings = {
+        autoOpenLogOnStart: !!st?.autoOpenLogOnStart,
+        openWith: st?.openWith ?? "",
+      };
     } catch {
       // 读不到一条偏好不值得弹错误，用默认值继续。
     }
@@ -374,11 +384,31 @@ class AppState {
     const prev = this.settings.autoOpenLogOnStart;
     if (prev === enabled) return;
 
-    this.settings = { autoOpenLogOnStart: enabled };
+    this.settings = { ...this.settings, autoOpenLogOnStart: enabled };
     try {
       await api.setAutoOpenLogOnStart(enabled);
     } catch (e) {
-      this.settings = { autoOpenLogOnStart: prev };
+      this.settings = { ...this.settings, autoOpenLogOnStart: prev };
+      this.notify(describeError(e), true);
+    }
+  }
+
+  /**
+   * 切换「打开目录」用的命令。空串表示回到系统文件管理器。
+   *
+   * 和自动打开日志一样先本地生效再回写：命令拼错时后端会拒绝，
+   * 这时回滚并提示，用户不用去点一次「打开目录」才发现设置没生效。
+   */
+  async setOpenWith(command: string): Promise<void> {
+    const next = command.trim();
+    const prev = this.settings.openWith;
+    if (prev === next) return;
+
+    this.settings = { ...this.settings, openWith: next };
+    try {
+      await api.setOpenWith(next);
+    } catch (e) {
+      this.settings = { ...this.settings, openWith: prev };
       this.notify(describeError(e), true);
     }
   }

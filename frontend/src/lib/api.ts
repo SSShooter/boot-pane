@@ -37,6 +37,8 @@ export interface Api {
   getSettings(): Promise<Settings>;
   /** 切换「启动任务后自动打开日志」。 */
   setAutoOpenLogOnStart(enabled: boolean): Promise<void>;
+  /** 设置「打开目录」用的命令，空串表示系统文件管理器。 */
+  setOpenWith(command: string): Promise<void>;
   listRunning(): Promise<Runtime[]>;
   startTask(projectId: string, taskId: string): Promise<void>;
   stopTask(projectId: string, taskId: string): Promise<void>;
@@ -62,6 +64,7 @@ const realApi: Api = {
   saveConfigJson: (id, raw) => ConfigService.SaveConfigJSON(id, raw),
   getSettings: () => ConfigService.GetSettings(),
   setAutoOpenLogOnStart: (enabled) => ConfigService.SetAutoOpenLogOnStart(enabled),
+  setOpenWith: (command) => ConfigService.SetOpenWith(command),
   listRunning: () => ProcessService.ListRunning(),
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),
   stopTask: (projectId, taskId) => ProcessService.StopTask(projectId, taskId),

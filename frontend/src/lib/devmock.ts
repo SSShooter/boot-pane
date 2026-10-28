@@ -161,7 +161,7 @@ const mockOccupied: Record<number, { pid: number; process: string }> = {
 };
 
 /** 预览模式下的本机偏好，只存在内存里，刷新页面就回到默认值。 */
-const mockSettings = { autoOpenLogOnStart: false };
+const mockSettings = { autoOpenLogOnStart: false, openWith: "" };
 
 export const mockApi = {
   async listProjects(): Promise<ResolvedProject[]> {
@@ -243,6 +243,9 @@ export const mockApi = {
   },
   async setAutoOpenLogOnStart(enabled: boolean): Promise<void> {
     mockSettings.autoOpenLogOnStart = enabled;
+  },
+  async setOpenWith(command: string): Promise<void> {
+    mockSettings.openWith = command;
   },
   async listRunning() {
     return [...mockRuntimes.values()];

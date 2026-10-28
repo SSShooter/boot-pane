@@ -76,7 +76,13 @@
         生成配置
       </button>
       <button class="btn" onclick={() => app.openEditor(project.id)}>编辑配置</button>
-      <button class="btn" onclick={() => app.openProjectDir(project.id)}>打开目录</button>
+      <button
+        class="btn"
+        title={app.openWith ? `用 ${app.openWithLabel} 打开 ${project.path}` : "在系统文件管理器里打开"}
+        onclick={() => app.openProjectDir(project.id)}
+      >
+        {app.openWith ? `用 ${app.openWithLabel} 打开` : "打开目录"}
+      </button>
       <button class="btn btn-danger" onclick={confirmRemove}>移除</button>
     </div>
   </div>

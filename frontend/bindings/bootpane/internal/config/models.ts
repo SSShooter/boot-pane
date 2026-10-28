@@ -92,6 +92,15 @@ export interface Settings {
      * settings 字段时反序列化后就是这个零值，不需要额外迁移。
      */
     "autoOpenLogOnStart": boolean;
+
+    /**
+     * OpenWith 是「打开目录」按钮执行的命令，空字符串表示交给系统文件管理器。
+     * 
+     * 存完整命令行而不是 IDE 的枚举值：用户可能用 VS Code、Cursor，
+     * 也可能是自己写的脚本，枚举永远列不全。命令里可以写 {path} 占位符，
+     * 不写时项目路径自动追加到末尾——多数编辑器 CLI 正是这个用法。
+     */
+    "openWith"?: string;
 }
 
 /**

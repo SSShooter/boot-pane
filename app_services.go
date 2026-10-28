@@ -5,6 +5,7 @@ import (
 	"net"
 	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"bootpane/internal/config"
@@ -43,13 +44,30 @@ func (c *ConfigService) RemoveProject(id string) error {
 	return c.store.Remove(id)
 }
 
-// OpenProjectDir 在系统文件管理器里打开项目目录。
+// OpenProjectDir 用系统文件管理器或设置里指定的编辑器打开项目目录。
 func (c *ConfigService) OpenProjectDir(id string) error {
 	p, err := c.store.Get(id)
 	if err != nil {
 		return err
 	}
+	if command := c.store.Settings().OpenWith; command != "" {
+		return launchOpenWith(command, p.Path)
+	}
 	return revealPath(p.Path)
+}
+
+// SetOpenWith 设置「打开目录」使用的命令，传空字符串表示回到系统文件管理器。
+//
+// 保存前先确认命令能找到：拼错的命令等到点按钮才报错，用户很难把错误
+// 和设置页里那一行输入联系起来。
+func (c *ConfigService) SetOpenWith(command string) error {
+	command = strings.TrimSpace(command)
+	if command != "" {
+		if _, err := lookupOpenWith(command); err != nil {
+			return err
+		}
+	}
+	return c.store.SetOpenWith(command)
 }
 
 // OpenConfigDir 打开全局配置所在目录。
