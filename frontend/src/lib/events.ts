@@ -7,6 +7,7 @@
 export const EVENT_RUNTIME = "bootpane:runtime";
 export const EVENT_LOG = "bootpane:log";
 export const EVENT_STATS = "bootpane:stats";
+export const EVENT_CLOSE_REQUEST = "bootpane:close-request";
 
 /** 日志增量。后端已按 50ms / 32KB 节流，前端直接追加即可。 */
 export interface LogPayload {
@@ -22,6 +23,15 @@ export interface StatsPayload {
   cpuPercent: number;
   memoryBytes: number;
   processes: number;
+}
+
+/**
+ * 关闭窗口时还有任务在跑，后端拦下了这次关闭。
+ *
+ * 只给 id：任务的中文名前端本来就有，后端不用为了拼一句话去反查配置。
+ */
+export interface CloseRequestPayload {
+  tasks: { projectId: string; taskId: string }[];
 }
 
 /** 任务在状态与日志上的唯一键。 */

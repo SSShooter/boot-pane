@@ -259,6 +259,23 @@ func (m *Manager) StopProject(projectID string) error {
 	return firstErr
 }
 
+// Running 返回所有正在运行（含正在启动）的任务快照。
+//
+// 关窗口前用它判断要不要拦下来问一句：stopped / failed 的任务进程树
+// 已经收尾，不需要再提示。
+func (m *Manager) Running() []Runtime {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	out := make([]Runtime, 0, len(m.runs))
+	for _, r := range m.runs {
+		if r.State == StateRunning || r.State == StateStarting {
+			out = append(out, r.Runtime)
+		}
+	}
+	return out
+}
+
 // List 返回所有任务的运行快照。
 func (m *Manager) List() []Runtime {
 	m.mu.RLock()
