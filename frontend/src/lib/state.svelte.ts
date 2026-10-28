@@ -3,8 +3,8 @@ import type { Runtime } from "../../bindings/bootpane/internal/process/models";
 import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
 import { Events } from "@wailsio/runtime";
 import { api, isPreview } from "./api";
-import { EVENT_LOG, EVENT_RUNTIME, EVENT_STATS, taskKey } from "./events";
-import type { LogPayload, StatsPayload } from "./events";
+import { EVENT_CLOSE_REQUEST, EVENT_LOG, EVENT_RUNTIME, EVENT_STATS, taskKey } from "./events";
+import type { CloseRequestPayload, LogPayload, StatsPayload } from "./events";
 import { MAX_LOG_CHARS } from "./format";
 import { openWithLabel } from "./openwith";
 import { countRuns, createAnsiState, mergeRuns, parseAnsiChunk, trimRuns } from "./ansi";
@@ -244,6 +244,9 @@ class AppState {
             processes: p.processes,
           };
         }),
+        Events.On(EVENT_CLOSE_REQUEST, (ev) => {
+          void this.handleCloseRequest(ev.data as CloseRequestPayload);
+        }),
       );
     }
 
@@ -254,6 +257,48 @@ class AppState {
       for (const off of offs) off();
       for (const t of timers) clearInterval(t);
     };
+  }
+
+  /**
+   * 用户关窗口时后端发现还有任务在跑，把决定权交给这里。
+   *
+   * 先回执再弹框：后端等不到回执会按「直接退出」兜底，那条路径是给
+   * webview 挂掉准备的，正常流程必须在弹框前就把回执发出去。
+   */
+  private async handleCloseRequest(payload: CloseRequestPayload): Promise<void> {
+    void api.acknowledgeClose().catch(() => {});
+
+    const tasks = payload?.tasks ?? [];
+    const names = tasks
+      .map((t) => this.describeTask(t.projectId, t.taskId))
+      .filter((name) => name !== "");
+
+    const ok = await this.confirm({
+      title: "还有任务在运行",
+      body:
+        names.length > 0
+          ? `关闭会一并停止：${names.join("、")}。`
+          : `关闭会一并停止 ${tasks.length} 个正在运行的任务。`,
+      detail: "进程会被强制终止，没来得及落盘的构建产物或写入可能不完整。",
+      confirmLabel: "停止并退出",
+      cancelLabel: "取消",
+      danger: true,
+    });
+
+    try {
+      if (ok) await api.confirmQuit();
+      else await api.cancelQuit();
+    } catch {
+      // 确认退出时后端可能已经把进程收掉了，这条报错没有展示的意义。
+    }
+  }
+
+  /** 把任务 id 翻成「项目 · 任务」；配置里找不到就返回空串，由调用方兜底。 */
+  private describeTask(projectId: string, taskId: string): string {
+    const project = this.projects.find((p) => p.id === projectId);
+    const task = (project?.tasks ?? []).find((t) => t.id === taskId);
+    if (!project || !task) return "";
+    return `${project.name} · ${task.label}`;
   }
 
   /** 拉一次本机偏好。失败不打扰用户，停在默认值即可。 */

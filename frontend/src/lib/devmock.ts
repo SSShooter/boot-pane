@@ -306,4 +306,8 @@ export const mockApi = {
       message: "已终止外部实例并重新启动",
     };
   },
+  // 预览模式下不会收到关闭提示（没有 Wails 事件），这几个只是占位。
+  async acknowledgeClose(): Promise<void> {},
+  async confirmQuit(): Promise<void> {},
+  async cancelQuit(): Promise<void> {},
 };

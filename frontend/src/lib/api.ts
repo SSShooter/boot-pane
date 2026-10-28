@@ -1,4 +1,4 @@
-import { ConfigService, ProcessService } from "../../bindings/bootpane";
+import { ConfigService, ProcessService, AppService } from "../../bindings/bootpane";
 import type {
   ImportResult,
   ResolvedProject,
@@ -48,6 +48,12 @@ export interface Api {
   checkPorts(ports: number[]): Promise<Listener[]>;
   /** 重启任务：端口被外部进程占着时先杀掉整棵进程树再启动。 */
   restartTask(projectId: string, taskId: string): Promise<RestartResult>;
+  /** 告诉后端：关闭提示已经弹出来了，别走超时兜底。 */
+  acknowledgeClose(): Promise<void>;
+  /** 用户确认停止所有任务并退出。 */
+  confirmQuit(): Promise<void>;
+  /** 用户取消了这次关闭，窗口留着。 */
+  cancelQuit(): Promise<void>;
 }
 
 const realApi: Api = {
@@ -71,6 +77,9 @@ const realApi: Api = {
   getTaskLog: (projectId, taskId) => ProcessService.TaskLog(projectId, taskId),
   checkPorts: (ports) => ProcessService.CheckPorts(ports),
   restartTask: (projectId, taskId) => ProcessService.RestartTask(projectId, taskId),
+  acknowledgeClose: () => AppService.AcknowledgeClose(),
+  confirmQuit: () => AppService.ConfirmQuit(),
+  cancelQuit: () => AppService.CancelQuit(),
 };
 
 export const api: Api = isPreview ? (mockApi as unknown as Api) : realApi;
