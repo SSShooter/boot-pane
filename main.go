@@ -81,7 +81,8 @@ func main() {
 		Title:            "bootpane",
 		Width:            1180,
 		Height:           760,
-		BackgroundColour: application.NewRGB(250, 250, 249),
+		// 和 style.css 的 --bg 保持一致：首帧渲染前窗口是这块色，对不上就会闪一下白。
+		BackgroundColour: application.NewRGB(13, 13, 15),
 		URL:              "/",
 		// Windows 上去掉系统标题栏，改由前端 TitleBar.svelte 画：系统标题栏
 		// 里已经写着一次应用名，再和侧栏品牌并列就重复了，还白占一行高度。

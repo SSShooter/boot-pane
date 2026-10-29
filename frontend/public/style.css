@@ -1,30 +1,50 @@
 :root {
-  --bg: #fafaf9;
-  --bg-rail: #f4f4f2;
-  --surface: #ffffff;
-  --surface-sunk: #f7f7f5;
-  --border: #e7e5e4;
-  --border-strong: #d6d3d1;
-  --text: #1c1917;
-  --text-dim: #78716c;
-  --text-faint: #a8a29e;
-  --accent: #2563eb;
-  --accent-ink: #1d4ed8;
-  --accent-soft: #eff6ff;
-  --ok: #15803d;
-  --ok-soft: #f0fdf4;
-  --warn: #b45309;
-  --warn-soft: #fffbeb;
-  --err: #b91c1c;
-  --err-soft: #fef2f2;
-  --star: #d97706;
-  --star-ink: #b45309;
+  /* 配色取自应用图标：黑底托金线。黑是主体（背景、面板、正文），
+     金只出现在主操作、选中态和「正在发生」的标记上。 */
+  --bg: #0d0d0f;
+  --bg-rail: #09090a;
+  --surface: #151518;
+  --surface-sunk: #0a0a0c;
+  --border: #26262b;
+  --border-strong: #37373e;
+  --text: #ece7dc;
+  --text-dim: #a6a094;
+  --text-faint: #6f6a61;
+  /* hover / press 是深底上叠出来的两层，比 surface 再亮一档。 */
+  --hover: #1c1c20;
+  --press: #26262b;
+  --accent: #d4af37;
+  --accent-ink: #e8c766;
+  /* 金底上的字：深底金块必须配近黑字，白字在 #d4af37 上对比度不够。 */
+  --accent-on: #14120a;
+  --accent-soft: rgba(212, 175, 55, 0.14);
+  --accent-line: rgba(212, 175, 55, 0.32);
+  --ok: #56b98a;
+  --ok-soft: rgba(86, 185, 138, 0.14);
+  --warn: #d9932f;
+  --warn-soft: rgba(217, 147, 47, 0.14);
+  --warn-line: rgba(217, 147, 47, 0.34);
+  --warn-text: #ecc08a;
+  --err: #e06a5f;
+  --err-soft: rgba(224, 106, 95, 0.14);
+  --err-line: rgba(224, 106, 95, 0.34);
+  --err-text: #f2a49b;
+  --star: #f0c457;
+  --star-ink: #ffdd8a;
   --radius: 10px;
   --radius-sm: 7px;
   --rail-w: 272px;
   --titlebar-h: 36px;
   --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, monospace;
   --sans: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  /* 让原生控件（textarea 滚动条、下拉、日期选择器）跟着走深色，
+     否则它们会在深色界面里留下一块刺眼的白。 */
+  color-scheme: dark;
+}
+
+::selection {
+  background: rgba(212, 175, 55, 0.3);
+  color: #fdf8ea;
 }
 
 * {
@@ -72,14 +92,14 @@ input {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d6d3d1;
+  background: #2c2c32;
   border-radius: 6px;
   border: 3px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a8a29e;
+  background: #43434a;
   background-clip: content-box;
 }
 
@@ -138,10 +158,16 @@ input {
   display: block;
 }
 
+/* 品牌字做成金属金渐变，和图标里的拉丝金对上；纯色 #d4af37 在深底上
+   显得单薄，头尾加点亮度才有那块立体的感觉。 */
 .brand-name {
   font-weight: 600;
   font-size: 13px;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
+  background: linear-gradient(180deg, #f7e6ac 0%, #d4af37 58%, #b08c2c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .titlebar-drag {
@@ -163,12 +189,12 @@ input {
 }
 
 .win-btn:hover {
-  background: #e9e9e6;
+  background: var(--hover);
   color: var(--text);
 }
 
 .win-btn:active {
-  background: #dedcda;
+  background: var(--press);
 }
 
 .win-close:hover {
@@ -209,7 +235,7 @@ input {
 }
 
 .icon-btn:hover {
-  background: #e9e9e6;
+  background: var(--hover);
   color: var(--text);
 }
 
@@ -231,7 +257,7 @@ input {
 
 .search:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .rail-list {
@@ -252,13 +278,13 @@ input {
 }
 
 .proj-item:hover {
-  background: #eaeae7;
+  background: var(--hover);
 }
 
 .proj-item.is-active {
   background: var(--surface);
   border-left-color: var(--accent);
-  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.06);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .proj-row {
@@ -356,7 +382,7 @@ input {
 }
 
 .link-icon:hover {
-  background: #e9e9e6;
+  background: var(--hover);
   color: var(--text);
 }
 
@@ -522,18 +548,22 @@ input {
 
 .btn:hover {
   border-color: var(--text-faint);
-  background: var(--surface-sunk);
+  background: var(--hover);
 }
 
+/* 主操作是整块金底配近黑字：整个界面只有这里大面积用金，
+   泛化到普通按钮上就变成「到处闪金光」，反而没有重点。 */
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-on);
+  font-weight: 600;
 }
 
 .btn-primary:hover {
   background: var(--accent-ink);
   border-color: var(--accent-ink);
+  color: var(--accent-on);
 }
 
 .btn-ghost {
@@ -542,7 +572,7 @@ input {
 }
 
 .btn-ghost:hover {
-  background: var(--surface-sunk);
+  background: var(--hover);
   border-color: var(--border);
   color: var(--text);
 }
@@ -573,20 +603,21 @@ input {
 
 .banner.err {
   background: var(--err-soft);
-  border-color: #fecaca;
-  color: #7f1d1d;
+  border-color: var(--err-line);
+  color: var(--err-text);
 }
 
 .banner.warn {
   background: var(--warn-soft);
-  border-color: #fde68a;
-  color: #78350f;
+  border-color: var(--warn-line);
+  color: var(--warn-text);
 }
 
+/* 提示条走副色金：它不是错误也不是警告，只是「这里有件事你可以做」。 */
 .banner.info {
   background: var(--accent-soft);
-  border-color: #bfdbfe;
-  color: #1e3a8a;
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
 }
 
 .banner strong {
@@ -704,7 +735,7 @@ input {
 }
 
 .star-btn:hover {
-  background: var(--surface-sunk);
+  background: var(--hover);
   color: var(--text-dim);
 }
 
@@ -815,16 +846,17 @@ input {
 }
 
 .seg button:hover {
-  background: var(--surface-sunk);
+  background: var(--hover);
 }
 
 .seg button.is-on {
-  background: var(--text);
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-weight: 500;
 }
 
 .seg button.is-on:hover {
-  background: var(--text);
+  background: var(--accent);
 }
 
 .empty-actions {
@@ -1000,7 +1032,7 @@ input {
   width: 44px;
   height: 44px;
   border-radius: 12px;
-  border: 1px dashed var(--border-strong);
+  border: 1px dashed var(--accent-line);
   display: grid;
   place-items: center;
   color: var(--text-faint);
@@ -1166,8 +1198,8 @@ input {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(28, 25, 23, 0.28);
+  background: #f6f1e4;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
   transition: transform 0.16s ease;
 }
 
@@ -1199,7 +1231,7 @@ input {
 
 .select-trigger:hover {
   border-color: var(--text-faint);
-  background: var(--surface-sunk);
+  background: var(--hover);
 }
 
 .select-trigger:focus-visible,
@@ -1241,7 +1273,7 @@ input {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  box-shadow: 0 14px 34px rgba(28, 25, 23, 0.16), 0 2px 6px rgba(28, 25, 23, 0.08);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
 .select-menu.is-placed {
@@ -1259,7 +1291,7 @@ input {
 }
 
 .select-option.is-active {
-  background: var(--surface-sunk);
+  background: var(--hover);
 }
 
 .select-option[aria-selected="true"] {
@@ -1276,7 +1308,7 @@ input {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(28, 25, 23, 0.34);
+  background: rgba(0, 0, 0, 0.62);
   display: grid;
   place-items: center;
   padding: 32px;
@@ -1289,8 +1321,9 @@ input {
   display: flex;
   flex-direction: column;
   background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(28, 25, 23, 0.24);
+  box-shadow: 0 30px 70px rgba(0, 0, 0, 0.66);
   overflow: hidden;
 }
 
@@ -1408,16 +1441,16 @@ input {
 
 .paste-area:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .dialog-error {
   margin: 8px 0 0 26px;
   padding: 7px 10px;
   border-radius: var(--radius-sm);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--err-line);
   background: var(--err-soft);
-  color: #7f1d1d;
+  color: var(--err-text);
   font-size: 12px;
 }
 
@@ -1509,7 +1542,7 @@ input {
 
 .json-editor:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .path-chip {
@@ -1585,6 +1618,8 @@ input {
 
 /* ---------- Toast ---------- */
 
+/* 金边请帖式的深色胶囊：初稿试过整块金底，太吵；也试过纯灰底，
+   在深色界面里又不够「刚发生过一件事」。 */
 .toast {
   position: fixed;
   left: 50%;
@@ -1593,16 +1628,19 @@ input {
   max-width: 520px;
   padding: 9px 14px;
   border-radius: var(--radius-sm);
-  background: #1c1917;
-  color: #fafaf9;
+  background: #17150f;
+  border: 1px solid var(--accent-line);
+  color: var(--accent-ink);
   font-size: 12.5px;
-  box-shadow: 0 6px 20px rgba(28, 25, 23, 0.22);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
   z-index: 50;
   pointer-events: none;
 }
 
 .toast.err {
-  background: #7f1d1d;
+  background: #2a1210;
+  border-color: var(--err-line);
+  color: var(--err-text);
 }
 
 .spin {
@@ -1706,7 +1744,7 @@ input {
 }
 
 .log-tab-btn:hover {
-  background: var(--border-strong);
+  background: var(--press);
   color: var(--text);
 }
 
@@ -1720,7 +1758,7 @@ input {
 }
 
 .log-tab.is-active {
-  border-bottom-color: var(--text);
+  border-bottom-color: var(--accent);
   color: var(--text);
 }
 
@@ -1808,7 +1846,7 @@ input {
 }
 
 .log-tab-close:hover {
-  background: var(--border-strong);
+  background: var(--press);
   color: var(--text);
 }
 
@@ -1835,12 +1873,14 @@ input {
   text-overflow: ellipsis;
 }
 
+/* 日志正文压在比卡片更深的一层：终端输出需要一块「凹进去」的底，
+   和下面的输入/状态区拉开层次。 */
 .log-body {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 10px 14px 14px;
-  background: var(--surface);
+  background: var(--surface-sunk);
 }
 
 .log-body pre {
@@ -1865,28 +1905,29 @@ input {
 /*
  * 终端 16 色。
  *
- * 不能照搬终端默认值：面板是浅色底，标准「白色」（37/97）和亮色系直接
- * 落到白底上等于隐形，绿色 #00ff00 更是刺眼。这里按浅色主题重挑了一版，
- * 保证每种颜色在白底上都能读，亮度关系仍然成立。
+ * 不能照搬终端默认值：面板底色已经不是纯黑，终端那套 #000000 / #00ff00 /
+ * #0000ff 在这块暖黑底上要么糊成一团，要么刺眼。这里按当前底色重挑了一版：
+ * 黑位退成暖灰（否则深底上的黑色输出直接隐形），黄位靠向品牌金，
+ * 其余保持彼此可辨、亮度关系仍然成立。
  * 256 色和真彩色带的是绝对 RGB，没法走变量，由内联样式给。
  */
 .log-body {
-  --ansi-0: #1c1917;
-  --ansi-1: #b91c1c;
-  --ansi-2: #15803d;
-  --ansi-3: #a16207;
-  --ansi-4: #1d4ed8;
-  --ansi-5: #9333ea;
-  --ansi-6: #0e7490;
-  --ansi-7: #57534e;
-  --ansi-8: #78716c;
-  --ansi-9: #dc2626;
-  --ansi-10: #16a34a;
-  --ansi-11: #ca8a04;
-  --ansi-12: #2563eb;
-  --ansi-13: #c026d3;
-  --ansi-14: #0891b2;
-  --ansi-15: #292524;
+  --ansi-0: #4a463f;
+  --ansi-1: #e06a5f;
+  --ansi-2: #6fbf73;
+  --ansi-3: #d9a441;
+  --ansi-4: #7ba7e8;
+  --ansi-5: #c98bdd;
+  --ansi-6: #5fbcc4;
+  --ansi-7: #cfc7b6;
+  --ansi-8: #7a746a;
+  --ansi-9: #f08a7c;
+  --ansi-10: #9ad98a;
+  --ansi-11: #f0c463;
+  --ansi-12: #9dc0ff;
+  --ansi-13: #dfa6ef;
+  --ansi-14: #8bd8de;
+  --ansi-15: #f5f0e2;
 }
 
 .log-body .ansi-bold {

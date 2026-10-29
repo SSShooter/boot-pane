@@ -98,7 +98,8 @@ func (s *LogWindowService) Open(state string) error {
 		Height:           520,
 		MinWidth:         480,
 		MinHeight:        220,
-		BackgroundColour: application.NewRGB(250, 250, 249),
+		// 和主窗口同色，也和日志正文的 --surface-sunk 接近：这个窗口一开就是日志。
+		BackgroundColour: application.NewRGB(10, 10, 12),
 		URL:              logWindowURL(state),
 	})
 
