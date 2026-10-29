@@ -318,12 +318,15 @@ input {
   max-width: 940px;
 }
 
-/* 头部常驻：项目名、配置来源、生成/编辑/打开/移除这几个按钮不参与滚动。 */
+/* 头部常驻：项目名、配置来源、生成/编辑/打开/移除这几个按钮不参与滚动。
+   窗口变窄时整行允许换行：按钮整体掉到标题下面，而不是被右边裁掉；
+   再窄下去按钮自己也在组内换行。 */
 .panel-head {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 16px;
+  gap: 10px 16px;
   padding: 26px 28px 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
@@ -338,7 +341,9 @@ input {
 }
 
 .panel-title {
-  flex: 1;
+  /* 给个基准宽度：空间不够时先整体换行，而不是把标题挤到 0 宽、让
+     标题行里的胶囊按钮溢出压到右侧按钮上。 */
+  flex: 1 1 240px;
   min-width: 0;
 }
 
@@ -347,6 +352,11 @@ input {
   font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  /* 项目名可能很长：挤的时候用省略号，保住右边那组按钮 */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .panel-path {
@@ -393,8 +403,12 @@ input {
 
 .head-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  flex: none;
+  /* 可以收缩，这样极窄时按钮在组内换行，而不是撑破面板头 */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .btn {
@@ -668,8 +682,9 @@ input {
 
 .title-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
 }
 
 /* ---------- 配置来源切换 ---------- */

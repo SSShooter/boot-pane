@@ -46,7 +46,8 @@
   <div class="panel-head">
     <div class="panel-title">
       <div class="title-row">
-        <h1>{project.name}</h1>
+        <!-- 窄窗口下长项目名会被省略号截断，鼠标悬停能看到全名 -->
+        <h1 title={project.name}>{project.name}</h1>
         <div class="seg" role="group" aria-label="配置来源">
           <button
             class:is-on={!project.useRepoConfig}
