@@ -1506,6 +1506,26 @@ input {
   border-top: 1px solid var(--border-strong);
 }
 
+/* ---------- 独立日志窗口 ---------- */
+
+/*
+ * 独立窗口里只有这一块面板：撑满整个窗口。
+ * 抽屉形态的固定高度、上边框都是「嵌在内容底部」才成立的东西，搬过去只会
+ * 在窗口下半截留一片空白。
+ */
+.log-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.log-drawer.is-window {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  border-top: none;
+}
+
 /* ---------- 日志标签条 ---------- */
 
 /*

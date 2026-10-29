@@ -329,4 +329,21 @@ export const mockApi = {
   async acknowledgeClose(): Promise<void> {},
   async confirmQuit(): Promise<void> {},
   async cancelQuit(): Promise<void> {},
+  /**
+   * 浏览器里没有原生窗口，用 window.open 开一个同源页面：URL 参数和桌面端
+   * 完全一样，至少能把独立窗口里的布局和按钮调出来。
+   *
+   * 跨窗口事件在预览里不成立（isPreview 不订阅事件），所以主窗口关掉弹窗
+   * 不会自动收回内嵌面板，刷新页面即可。
+   */
+  async detachLogWindow(state: string): Promise<void> {
+    const url = `${location.origin}${location.pathname}?log=${encodeURIComponent(state)}`;
+    if (!window.open(url, "log-window", "width=880,height=520")) {
+      throw new Error("浏览器预览模式：弹窗被拦截了，请允许本站弹窗");
+    }
+  },
+  /** 浏览器里拿不到别的窗口句柄，只能当作它还在。 */
+  async focusLogWindow(): Promise<boolean> {
+    return true;
+  },
 };

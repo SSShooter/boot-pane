@@ -3,6 +3,14 @@
   import { app } from "../lib/state.svelte";
   import { formatBytes, formatPercent } from "../lib/format";
 
+  /**
+   * 是不是跑在独立窗口里。
+   *
+   * 同一个面板两边共用：区别只在按钮（独立窗口只能收回内嵌，没有「收起」
+   * 和「弹窗」）和外壳样式（独立窗口里它撑满整个窗口，不是底部抽屉）。
+   */
+  let { detached = false }: { detached?: boolean } = $props();
+
   let bodyEl: HTMLDivElement | undefined = $state();
   /** 用户是否停留在底部。往上翻看历史时不能强行拽回去。 */
   let stickToBottom = $state(true);
@@ -85,7 +93,7 @@
 </script>
 
 {#if target}
-  <aside class="log-drawer" aria-label="运行日志">
+  <aside class="log-drawer" class:is-window={detached} aria-label="运行日志">
     <div class="log-tabs" role="tablist" aria-label="日志标签">
       {#each tabs as tab (tab.key)}
         <div class="log-tab" class:is-active={tab.key === app.activeLogKey}>
@@ -142,7 +150,20 @@
       <span class="foot-gap"></span>
 
       <button class="btn btn-ghost btn-mini" onclick={() => app.clearLog()}>清空</button>
-      <button class="btn btn-ghost btn-mini" onclick={() => app.closeLog()}>收起</button>
+      {#if detached}
+        <button
+          class="btn btn-ghost btn-mini"
+          title="把日志面板收回主窗口"
+          onclick={() => app.embedLog()}
+        >内嵌</button>
+      {:else}
+        <button
+          class="btn btn-ghost btn-mini"
+          title="把整个日志面板弹到独立窗口"
+          onclick={() => app.detachLog()}
+        >弹窗</button>
+        <button class="btn btn-ghost btn-mini" onclick={() => app.closeLog()}>收起</button>
+      {/if}
     </header>
 
     <div class="log-body" bind:this={bodyEl} onscroll={onScroll}>

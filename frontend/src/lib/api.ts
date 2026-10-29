@@ -1,4 +1,4 @@
-import { ConfigService, ProcessService, AppService } from "../../bindings/bootpane";
+import { ConfigService, LogWindowService, ProcessService, AppService } from "../../bindings/bootpane";
 import type {
   ImportResult,
   ResolvedProject,
@@ -59,6 +59,10 @@ export interface Api {
   confirmQuit(): Promise<void>;
   /** 用户取消了这次关闭，窗口留着。 */
   cancelQuit(): Promise<void>;
+  /** 把日志面板弹成独立窗口，state 是面板状态的序列化快照。 */
+  detachLogWindow(state: string): Promise<void>;
+  /** 把已经弹出的日志窗口拉到前面；返回窗口是否还在。 */
+  focusLogWindow(): Promise<boolean>;
 }
 
 /**
@@ -94,6 +98,8 @@ const realApi: Api = {
   acknowledgeClose: () => AppService.AcknowledgeClose(),
   confirmQuit: () => AppService.ConfirmQuit(),
   cancelQuit: () => AppService.CancelQuit(),
+  detachLogWindow: (state) => LogWindowService.Open(state),
+  focusLogWindow: () => LogWindowService.Focus(),
 };
 
 export const api: Api = isPreview ? (mockApi as unknown as Api) : realApi;

@@ -51,6 +51,10 @@ func main() {
 		}
 	}, emit)
 
+	// 日志独立窗口的服务要在 New 之前注册，但它创建窗口要用的 app 只能 New 之后
+	// 才有，所以先构造、再 Attach。
+	logWindow := NewLogWindowService()
+
 	app := application.New(application.Options{
 		Name:        "bootpane",
 		Description: "项目启动器",
@@ -58,6 +62,7 @@ func main() {
 			application.NewService(NewConfigService(store)),
 			application.NewService(NewProcessService(procMgr, store)),
 			application.NewService(NewAppService(guard)),
+			application.NewService(logWindow),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -69,6 +74,7 @@ func main() {
 		OnShutdown: procMgr.Shutdown,
 	})
 	appPtr.Store(app)
+	logWindow.attach(app)
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "bootpane",

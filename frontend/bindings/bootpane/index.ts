@@ -3,10 +3,12 @@
 
 import * as AppService from "./appservice.js";
 import * as ConfigService from "./configservice.js";
+import * as LogWindowService from "./logwindowservice.js";
 import * as ProcessService from "./processservice.js";
 export {
     AppService,
     ConfigService,
+    LogWindowService,
     ProcessService
 };
 

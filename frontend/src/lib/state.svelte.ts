@@ -4,12 +4,31 @@ import type { Editor } from "../../bindings/bootpane/internal/editors/models";
 import type { Listener } from "../../bindings/bootpane/internal/portinfo/models";
 import { Events } from "@wailsio/runtime";
 import { api, isPreview } from "./api";
-import { EVENT_CLOSE_REQUEST, EVENT_LOG, EVENT_RUNTIME, EVENT_STATS, taskKey } from "./events";
-import type { CloseRequestPayload, LogPayload, StatsPayload } from "./events";
+import {
+  EVENT_CLOSE_REQUEST,
+  EVENT_LOG,
+  EVENT_LOG_CLEAR,
+  EVENT_LOG_EMBED,
+  EVENT_LOG_STATE,
+  EVENT_LOG_STATE_ASK,
+  EVENT_LOG_WINDOW_CLOSED,
+  EVENT_RUNTIME,
+  EVENT_STATS,
+  LOG_WINDOW_QUERY,
+  taskKey,
+} from "./events";
+import type {
+  CloseRequestPayload,
+  LogClearPayload,
+  LogPayload,
+  LogStatePayload,
+  StatsPayload,
+} from "./events";
 import { MAX_LOG_CHARS } from "./format";
 import { openWithLabel } from "./openwith";
 import { countRuns, createAnsiState, mergeRuns, parseAnsiChunk, trimRuns } from "./ansi";
 import type { AnsiState, LogRun } from "./ansi";
+import { closeCurrentWindow } from "./window";
 
 /** 把 Go 侧返回的 error 转成能直接展示的文案。 */
 function describeError(e: unknown): string {
@@ -55,6 +74,38 @@ export const SETTINGS_VIEW = "__settings__";
 /** 不对应真实项目的视图 id。 */
 function isPseudoView(id: string): boolean {
   return id === STARRED_VIEW || id === SETTINGS_VIEW;
+}
+
+/**
+ * 当前窗口的随机标识。
+ *
+ * 跨窗口同步走的是广播事件，自己也会收到自己发的那条；带上它才能把回音
+ * 认出来忽略掉，不然每次操作都会在原地再采纳一遍。
+ */
+const WINDOW_ID = Math.random().toString(36).slice(2, 10);
+
+/**
+ * 解析独立窗口入口地址里的面板状态。
+ *
+ * 地址是外部输入，解析失败就返回 null 而不是抛：独立窗口退化成空面板，
+ * 用户还能点「内嵌」回去，而不是对着一片白屏不知所措。
+ */
+function parseLogSnapshot(raw: string): LogStatePayload | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed?.tabs)) return null;
+    const tabs = parsed.tabs
+      .filter((t: any) => t && t.key && t.projectId && t.taskId)
+      .map((t: any) => ({
+        key: String(t.key),
+        projectId: String(t.projectId),
+        taskId: String(t.taskId),
+      }));
+    return { source: String(parsed.source ?? ""), key: String(parsed.key ?? ""), tabs };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -132,6 +183,13 @@ class AppState {
   /** 日志抽屉是否展开。有标签但收起时，侧栏的「日志」入口能再打开。 */
   logOpen = $state(false);
   /**
+   * 日志面板是否已经弹成独立窗口。
+   *
+   * 弹出后主窗口不再渲染内嵌面板——同一块面板只能出现在一个地方，否则
+   * 两边各显示一半状态，用户不知道该看哪个。
+   */
+  logDetached = $state(false);
+  /**
    * 不是当前标签的任务又输出了内容。
    *
    * 没有这个标记，切过去才发现前后两段接不上；有了它，标签上的小点
@@ -141,6 +199,14 @@ class AppState {
 
   selectedId = $state("");
   loading = $state(true);
+
+  /**
+   * 当前窗口的角色。
+   *
+   * `main` 带侧栏和项目面板，`log` 只承载日志面板。两边跑的是同一份代码，
+   * 但关闭确认、收回面板这些动作只归主窗口管。
+   */
+  private role: "main" | "log" = "main";
 
   /**
    * 本机偏好，镜像 workspace.json 顶层的那份数据。
@@ -269,8 +335,12 @@ class AppState {
    *
    * 浏览器预览模式下没有 Wails 运行时，事件订阅要跳过（Events.On 会抛错），
    * 但轮询照跑——mock 数据同样能让界面显示端口占用。
+   *
+   * role 决定这份实例是不是主窗口：关窗确认弹在内嵌窗口里没有任何意义，
+   * 独立日志窗口跟着弹一遍只会让用户不知道该点哪个。
    */
-  connect(): () => void {
+  connect(role: "main" | "log" = "main"): () => void {
+    this.role = role;
     const offs: (() => void)[] = [];
     const timers: ReturnType<typeof setInterval>[] = [];
 
@@ -300,10 +370,34 @@ class AppState {
             processes: p.processes,
           };
         }),
-        Events.On(EVENT_CLOSE_REQUEST, (ev) => {
-          void this.handleCloseRequest(ev.data as CloseRequestPayload);
+        Events.On(EVENT_LOG_STATE, (ev) => {
+          this.adoptLogState(ev.data as LogStatePayload);
+        }),
+        Events.On(EVENT_LOG_STATE_ASK, (ev) => {
+          if ((ev.data as { source?: string })?.source === WINDOW_ID) return;
+          this.syncLogState();
+        }),
+        Events.On(EVENT_LOG_CLEAR, (ev) => {
+          const p = ev.data as LogClearPayload;
+          if (!p?.key || p.source === WINDOW_ID) return;
+          this.resetLog(p.key);
         }),
       );
+
+      if (role === "main") {
+        offs.push(
+          Events.On(EVENT_CLOSE_REQUEST, (ev) => {
+            void this.handleCloseRequest(ev.data as CloseRequestPayload);
+          }),
+          // 独立窗口没了，不管是点了「内嵌」还是直接叉掉。
+          Events.On(EVENT_LOG_EMBED, () => this.embedLogPanel()),
+          Events.On(EVENT_LOG_WINDOW_CLOSED, () => this.embedLogPanel()),
+        );
+      } else {
+        // 独立窗口刚起来就问一句：URL 里的快照是弹窗那一刻的，之后主窗口
+        // 可能又开了新标签。
+        void Events.Emit(EVENT_LOG_STATE_ASK, { source: WINDOW_ID });
+      }
     }
 
     timers.push(setInterval(() => void this.refreshRuntimes(), RECONCILE_INTERVAL));
@@ -618,8 +712,8 @@ class AppState {
    * 打开某个任务的日志。
    *
    * 已有标签就切过去，没有就新开一个——启动新应用时也走这里「抢占」当前视图，
-   * 旧标签不会丢，切回去还在。前端没攒到内容（比如窗口刚重载）时，顺手从
-   * 后端环形缓冲补一次历史。
+   * 旧标签不会丢，切回去还在。面板弹在独立窗口时也一样：主窗口只管改状态，
+   * 改完广播出去，独立窗口自己会跟上来。
    */
   async openLog(projectId: string, taskId: string): Promise<void> {
     const key = taskKey(projectId, taskId);
@@ -628,17 +722,9 @@ class AppState {
     }
     this.activateLog(key);
 
-    if (this.logs[key]?.chars) return;
-    try {
-      const text = await api.getTaskLog(projectId, taskId);
-      if (!text || this.logs[key]?.chars) return;
-      // 后端缓冲里同样是带 ANSI 的原始字节流，必须走同一套解析，
-      // 否则「刚打开面板」和「跑了半天」看到的是两种格式。
-      this.resetLog(key);
-      this.replaceLog(key, parseAnsiChunk(this.ansiFor(key), text));
-    } catch {
-      // 补不到就算了，后续事件来了照样能显示。
-    }
+    // 面板在独立窗口里：新标签在那边出现，把那个窗口拉到前面来。
+    // 用户刚点了「日志」却什么都看不到，比面板乱弹更难受。
+    if (this.logDetached) void this.focusLogWindow();
   }
 
   /** 切到一个已打开的标签并展开抽屉，同时清掉它的未读标记。 */
@@ -650,6 +736,10 @@ class AppState {
       delete unread[key];
       this.logUnread = unread;
     }
+
+    const tab = this.logTabs.find((t) => t.key === key);
+    if (tab) this.ensureLogContent(tab);
+    this.syncLogState();
   }
 
   /** 收起抽屉。标签保留，下次展开还能回到这一条。 */
@@ -659,6 +749,13 @@ class AppState {
 
   /** 展开抽屉：回到上次看的那条日志，没有就取第一个标签。 */
   showLog(): void {
+    // 面板在独立窗口里时，「展开」的意思是把它拉到前面，而不是在主窗口
+    // 里再画一份——同一块面板不能同时出现在两个地方。
+    if (this.logDetached) {
+      void this.focusLogWindow();
+      return;
+    }
+
     if (this.logTabs.length === 0) return;
     const kept = this.logTabs.some((t) => t.key === this.logKey);
     this.activateLog(kept ? this.logKey : this.logTabs[0].key);
@@ -666,6 +763,11 @@ class AppState {
 
   /** 抽屉开关，侧栏入口走这里。 */
   toggleLog(): void {
+    if (this.logDetached) {
+      void this.focusLogWindow();
+      return;
+    }
+
     if (this.logOpen) this.closeLog();
     else this.showLog();
   }
@@ -692,17 +794,159 @@ class AppState {
     if (rest.length === 0) {
       this.logKey = "";
       this.logOpen = false;
+      this.syncLogState();
+
+      // 独立窗口里关掉最后一个标签就没什么可看的了，跟着收回主窗口：
+      // 留一个空窗口在那里，用户只能去猜怎么把面板拿回来。
+      if (this.role === "log") void this.embedLog();
       return;
     }
+
     if (this.logKey === key) {
       this.activateLog(rest[Math.min(idx, rest.length - 1)].key);
+    } else {
+      this.syncLogState();
     }
   }
 
   /** 清空当前标签的日志内容。标签本身留着——用户要的是重新看一遍输出。 */
   clearLog(): void {
-    if (!this.activeLogKey) return;
-    this.resetLog(this.activeLogKey);
+    const key = this.activeLogKey;
+    if (!key) return;
+
+    this.resetLog(key);
+    // 另一个窗口也攒着同一份输出，只清自己这边会让两边看到的不一样。
+    if (!isPreview) void Events.Emit(EVENT_LOG_CLEAR, { source: WINDOW_ID, key });
+  }
+
+  /**
+   * 把整块日志面板弹成独立窗口。
+   *
+   * 弹出去之后面板只存在于独立窗口里：主窗口不再渲染它，之后启动新任务
+   * 产生的日志也由独立窗口接管（状态走 bootpane:log-state 同步）。
+   */
+  async detachLog(): Promise<void> {
+    if (this.logDetached) {
+      await this.focusLogWindow();
+      return;
+    }
+    if (!this.logKey) return;
+
+    try {
+      await api.detachLogWindow(JSON.stringify(this.logSnapshot()));
+      this.logDetached = true;
+      this.logOpen = true;
+    } catch (e) {
+      // 开不出窗口就保持内嵌：面板还在原地，用户看得见也还能用。
+      this.notify(describeError(e), true);
+    }
+  }
+
+  /**
+   * 把面板交回主窗口（独立窗口上的「内嵌」）。
+   *
+   * 标签和当前标签早就通过 bootpane:log-state 同步过去了，这里只是通知
+   * 主窗口「别再隐藏面板」，然后关掉自己。关窗时 Go 侧会再推一次关窗事件，
+   * 主窗口那边是幂等的。
+   */
+  async embedLog(): Promise<void> {
+    if (this.role !== "log") return;
+    if (!isPreview) await Events.Emit(EVENT_LOG_EMBED, { source: WINDOW_ID });
+    closeCurrentWindow();
+  }
+
+  /**
+   * 从入口地址里读回面板状态（独立窗口专用）。
+   *
+   * 独立窗口是一个全新的前端实例，拿不到主窗口内存里的标签，所以弹窗时
+   * 把状态编码进 URL。必须在第一次渲染之前调用，否则会先闪一帧空面板。
+   */
+  adoptLogQuery(search: string): void {
+    const snap = parseLogSnapshot(new URLSearchParams(search).get(LOG_WINDOW_QUERY) ?? "");
+    if (!snap) return;
+
+    this.logTabs = snap.tabs;
+    this.logKey = snap.key;
+    this.logOpen = true;
+
+    const active = this.logTabs.find((t) => t.key === this.logKey);
+    if (active) this.ensureLogContent(active);
+  }
+
+  /** 把当前面板状态广播给另一个窗口。 */
+  private syncLogState(): void {
+    if (isPreview) return;
+    void Events.Emit(EVENT_LOG_STATE, this.logSnapshot());
+  }
+
+  /** 面板状态快照：只有定位信息，日志正文由各窗口自己攒。 */
+  private logSnapshot(): LogStatePayload {
+    return { source: WINDOW_ID, tabs: this.logTabs, key: this.logKey };
+  }
+
+  /**
+   * 采纳另一个窗口发来的面板状态。
+   *
+   * 整份替换而不是逐项合并：标签顺序、当前标签、有没有标签是同一份事实的
+   * 不同侧面，分开合只会合出一个谁都没见过的中间状态。
+   */
+  private adoptLogState(p: LogStatePayload): void {
+    if (!p || p.source === WINDOW_ID || !Array.isArray(p.tabs)) return;
+
+    this.logTabs = p.tabs;
+    this.logKey = p.key;
+
+    // 新激活的那条可能是第一次见，自己手里没有它的输出。
+    const active = this.logTabs.find((t) => t.key === this.logKey);
+    if (active) this.ensureLogContent(active);
+
+    if (this.logTabs.length === 0 && this.role === "log") void this.embedLog();
+  }
+
+  /** 独立窗口没了：把面板接回内嵌，当前标签和输出都还在。 */
+  private embedLogPanel(): void {
+    if (!this.logDetached) return;
+
+    this.logDetached = false;
+    // 独立窗口里可能已经把标签全关掉了，那就不要再拉起一个空面板。
+    this.logOpen = this.logTabs.length > 0;
+  }
+
+  /**
+   * 补一次历史输出。
+   *
+   * 后端环形缓冲里存着完整输出，但窗口刚开、刚重载、或者标签是另一个窗口
+   * 开的，自己手里就没有内容——这时拉一次全量，之后靠 bootpane:log 增量。
+   */
+  private ensureLogContent(tab: LogTab): void {
+    if (this.logs[tab.key]?.chars) return;
+
+    void api
+      .getTaskLog(tab.projectId, tab.taskId)
+      .then((text) => {
+        if (!text || this.logs[tab.key]?.chars) return;
+        // 后端缓冲里同样是带 ANSI 的原始字节流，必须走同一套解析，
+        // 否则「刚打开面板」和「跑了半天」看到的是两种格式。
+        this.resetLog(tab.key);
+        this.replaceLog(tab.key, parseAnsiChunk(this.ansiFor(tab.key), text));
+      })
+      .catch(() => {
+        // 补不到就算了，后续事件来了照样能显示。
+      });
+  }
+
+  /** 把独立窗口拉到前面；它已经不在（用户直接关了）就回落到内嵌面板。 */
+  private async focusLogWindow(): Promise<void> {
+    if (!this.logDetached) return;
+
+    try {
+      if (await api.focusLogWindow()) return;
+    } catch {
+      // 查不到窗口就等于已经关了，按内嵌处理。
+    }
+
+    this.logDetached = false;
+    this.showLog();
   }
 
   async addProject(path: string): Promise<void> {
@@ -748,6 +992,7 @@ class AppState {
       this.logKey = "";
       this.logOpen = false;
     }
+    this.syncLogState();
   }
 
   async openProjectDir(id: string): Promise<void> {
