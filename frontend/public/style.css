@@ -252,7 +252,7 @@ input {
 }
 
 .rail-foot {
-  padding: 10px 14px;
+  padding: 8px 14px;
   border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -278,6 +278,28 @@ input {
 .link-btn.is-on {
   color: var(--accent-ink);
   border-bottom-color: var(--accent);
+}
+
+/* 页脚里的图标入口：和左侧 11.5px 的一行字等高，
+   所以尺寸压得比 .icon-btn 小，靠 hover 底块标出可点区域。 */
+.link-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.link-icon:hover {
+  background: #e9e9e6;
+  color: var(--text);
+}
+
+.link-icon.is-on {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }
 
 .foot-links {
@@ -309,13 +331,16 @@ input {
   flex-direction: column;
 }
 
-/* 面板整体是纵向 flex：头一行固定，正文一行伸展并自己滚。 */
+/* 面板整体是纵向 flex：头一行固定，正文一行伸展并自己滚。
+   面板本身不再封顶：封顶的话头部下边框、分组线都会在 940px 处凭空断掉。
+   阅读宽度照样收在 940px，多出来的宽度由头和正文的右内边距吃掉。 */
 .panel {
+  --panel-col: 940px;
+  --panel-pad: 28px;
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  max-width: 940px;
 }
 
 /* 头部常驻：项目名、配置来源、生成/编辑/打开/移除这几个按钮不参与滚动。
@@ -327,17 +352,24 @@ input {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 10px 16px;
-  padding: 26px 28px 16px;
+  padding: 26px var(--panel-pad) 16px;
+  /* 窗口变宽时右侧留白跟着变大，内容始终停在 912px 那条线上，
+     但下边框是画在盒子边框上，照样一直通到窗口右缘。 */
+  padding-right: max(var(--panel-pad), calc(100% - var(--panel-col) + var(--panel-pad)));
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 
-/* 唯一的滚动区：横幅、分组标题、任务卡片都在这里滚，头顶的头部不跟着走。 */
+/* 唯一的滚动区：横幅、分组标题、任务卡片都在这里滚，头顶的头部不跟着走。
+   overflow-x: hidden 是给分组线用的：它靠伪元素往右溢出到窗口边缘，
+   不裁掉的话正文会多出一条横向滚动条。 */
 .panel-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 0 28px 40px;
+  overflow-x: hidden;
+  padding: 0 var(--panel-pad) 40px;
+  padding-right: max(var(--panel-pad), calc(100% - var(--panel-col) + var(--panel-pad)));
 }
 
 .panel-title {
@@ -529,9 +561,23 @@ input {
 }
 
 .group-rule {
+  position: relative;
   flex: 1;
   height: 1px;
   background: var(--border);
+}
+
+/* 同理：分组线原本也在 912px 处收住。往右拉满到窗口边缘（多出的部分被
+   .panel-body 的 overflow-x: hidden 裁在窗口边界上），别让它在半空断掉。 */
+.group-rule::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 100%;
+  right: -100vw;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
 }
 
 /* 最小轨道宽度由 258px 提到 320px。
