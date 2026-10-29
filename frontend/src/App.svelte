@@ -21,29 +21,35 @@
 <div class="app">
   <Sidebar />
 
+  <!-- 主内容区是纵向 flex：面板自己再分「固定头 + 滚动正文」两行，
+       日志抽屉作为同一层的第三个兄弟排在最后，谁都不覆盖谁。 -->
   <main class="content">
-    {#if app.showSettings}
-      <SettingsPanel />
-    {:else if app.showStarred}
-      <StarredPanel />
-    {:else if app.selected}
-      <ProjectPanel project={app.selected} />
-    {:else if !app.loading}
-      <div class="empty">
-        <div class="empty-icon">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-          </svg>
+    <div class="content-main">
+      {#if app.showSettings}
+        <SettingsPanel />
+      {:else if app.showStarred}
+        <StarredPanel />
+      {:else if app.selected}
+        <ProjectPanel project={app.selected} />
+      {:else if !app.loading}
+        <div class="empty">
+          <div class="empty-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            </svg>
+          </div>
+          {#if app.projects.length === 0}
+            <h2>还没有添加项目</h2>
+            <p>点击左上角的加号选择项目目录。项目会出现在这里，每个项目可以配置多个启动按钮。</p>
+          {:else}
+            <h2>选择左侧的一个项目</h2>
+            <p>从列表里挑一个项目，右侧会显示它所有的启动按钮。</p>
+          {/if}
         </div>
-        {#if app.projects.length === 0}
-          <h2>还没有添加项目</h2>
-          <p>点击左上角的加号选择项目目录。项目会出现在这里，每个项目可以配置多个启动按钮。</p>
-        {:else}
-          <h2>选择左侧的一个项目</h2>
-          <p>从列表里挑一个项目，右侧会显示它所有的启动按钮。</p>
-        {/if}
-      </div>
-    {/if}
+      {/if}
+    </div>
+
+    <LogPanel />
   </main>
 </div>
 
@@ -54,8 +60,6 @@
 {#if app.editorProject}
   <ConfigEditor project={app.editorProject} onclose={() => app.closeEditor()} />
 {/if}
-
-<LogPanel />
 
 <ConfirmDialog />
 

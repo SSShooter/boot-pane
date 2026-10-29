@@ -92,76 +92,78 @@
     </div>
   </div>
 
-  {#if errors.length > 0}
-    <div class="banner err">
-      <div>
-        <strong>配置有问题，启动前需要修正</strong>
-        <ul class="banner-list">
-          {#each errors as issue}
-            <li>{issue.taskId ? `[${issue.taskId}] ` : ""}{issue.message}</li>
-          {/each}
-        </ul>
-      </div>
-    </div>
-  {/if}
-
-  {#if warns.length > 0}
-    <div class="banner warn">
-      <div>
-        <strong>提示</strong>
-        <ul class="banner-list">
-          {#each warns as issue}
-            <li>{issue.taskId ? `[${issue.taskId}] ` : ""}{issue.message}</li>
-          {/each}
-        </ul>
-      </div>
-    </div>
-  {/if}
-
-  {#if repoHint && errors.length === 0}
-    <div class="banner info">
-      <div>
-        这个仓库自带 <code>.bootpane.json</code>，当前用的是全局配置。
-        <button class="link-btn" onclick={() => app.setUseRepoConfig(project.id, true)}>
-          切换过去
-        </button>
-      </div>
-    </div>
-  {/if}
-
-  {#if project.exists && tasks.length === 0}
-    <div class="empty" style="height: auto; padding: 44px 0;">
-      <div class="empty-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-          <rect x="3" y="4" width="18" height="16" rx="2" /><line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-      </div>
-      <h2>这个项目还没有启动按钮</h2>
-      <p>
-        让 AI 读一遍仓库结构，自动生成一份配置——复制 prompt 到项目目录下用，
-        再把结果粘回来就行。也可以直接手写 JSON。
-      </p>
-      <div class="empty-actions">
-        <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
-          生成配置
-        </button>
-        <button class="btn" onclick={() => app.openEditor(project.id)}>手写 JSON</button>
-        <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
-      </div>
-    </div>
-  {:else}
-    {#each groups as group (group.name)}
-      <section class="group">
-        <div class="group-head">
-          <span class="group-name">{group.name || "启动项"}</span>
-          <span class="group-rule"></span>
+  <div class="panel-body">
+    {#if errors.length > 0}
+      <div class="banner err">
+        <div>
+          <strong>配置有问题，启动前需要修正</strong>
+          <ul class="banner-list">
+            {#each errors as issue}
+              <li>{issue.taskId ? `[${issue.taskId}] ` : ""}{issue.message}</li>
+            {/each}
+          </ul>
         </div>
-        <div class="task-grid">
-          {#each group.tasks as task (task.id)}
-            <TaskCard projectId={project.id} {task} />
-          {/each}
+      </div>
+    {/if}
+
+    {#if warns.length > 0}
+      <div class="banner warn">
+        <div>
+          <strong>提示</strong>
+          <ul class="banner-list">
+            {#each warns as issue}
+              <li>{issue.taskId ? `[${issue.taskId}] ` : ""}{issue.message}</li>
+            {/each}
+          </ul>
         </div>
-      </section>
-    {/each}
-  {/if}
+      </div>
+    {/if}
+
+    {#if repoHint && errors.length === 0}
+      <div class="banner info">
+        <div>
+          这个仓库自带 <code>.bootpane.json</code>，当前用的是全局配置。
+          <button class="link-btn" onclick={() => app.setUseRepoConfig(project.id, true)}>
+            切换过去
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    {#if project.exists && tasks.length === 0}
+      <div class="empty" style="height: auto; padding: 44px 0;">
+        <div class="empty-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+            <rect x="3" y="4" width="18" height="16" rx="2" /><line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </div>
+        <h2>这个项目还没有启动按钮</h2>
+        <p>
+          让 AI 读一遍仓库结构，自动生成一份配置——复制 prompt 到项目目录下用，
+          再把结果粘回来就行。也可以直接手写 JSON。
+        </p>
+        <div class="empty-actions">
+          <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
+            生成配置
+          </button>
+          <button class="btn" onclick={() => app.openEditor(project.id)}>手写 JSON</button>
+          <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
+        </div>
+      </div>
+    {:else}
+      {#each groups as group (group.name)}
+        <section class="group">
+          <div class="group-head">
+            <span class="group-name">{group.name || "启动项"}</span>
+            <span class="group-rule"></span>
+          </div>
+          <div class="task-grid">
+            {#each group.tasks as task (task.id)}
+              <TaskCard projectId={project.id} {task} />
+            {/each}
+          </div>
+        </section>
+      {/each}
+    {/if}
+  </div>
 </div>

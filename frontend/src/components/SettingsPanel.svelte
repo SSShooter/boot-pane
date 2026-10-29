@@ -85,111 +85,113 @@
     </div>
   </div>
 
-  <section class="group">
-    <div class="group-head">
-      <span class="group-name">运行</span>
-      <span class="group-rule"></span>
-    </div>
-
-    <div class="setting-list">
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-label">启动任务时自动打开日志</div>
-          <p class="setting-desc">
-            点「启动」后为这个任务新开一个日志标签并切过去，哪怕正看着别的任务。
-            之前看过的日志留在各自的标签里，随时切回去对照；批量启动（星标任务）不逐个抢占。
-          </p>
-        </div>
-        <button
-          class="switch"
-          class:is-on={autoOpenLog}
-          role="switch"
-          aria-checked={autoOpenLog}
-          aria-label="启动任务时自动打开日志"
-          onclick={() => app.setAutoOpenLogOnStart(!autoOpenLog)}
-        >
-          <span class="switch-knob"></span>
-        </button>
+  <div class="panel-body">
+    <section class="group">
+      <div class="group-head">
+        <span class="group-name">运行</span>
+        <span class="group-rule"></span>
       </div>
-    </div>
-  </section>
 
-  <section class="group">
-    <div class="group-head">
-      <span class="group-name">打开方式</span>
-      <span class="group-rule"></span>
-    </div>
-
-    <div class="setting-list">
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-label">打开项目目录时使用</div>
-          <p class="setting-desc">
-            项目头部的「打开目录」按钮会用它打开当前项目。下拉框里只列本机扫描到的编辑器，
-            也可以填自定义命令：已经在 PATH 里的程序写名字即可，需要指定位置时用
-            <code>{"{path}"}</code> 代表项目目录；不写占位符时目录会追加到命令末尾。
-          </p>
+      <div class="setting-list">
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-label">启动任务时自动打开日志</div>
+            <p class="setting-desc">
+              点「启动」后为这个任务新开一个日志标签并切过去，哪怕正看着别的任务。
+              之前看过的日志留在各自的标签里，随时切回去对照；批量启动（星标任务）不逐个抢占。
+            </p>
+          </div>
+          <button
+            class="switch"
+            class:is-on={autoOpenLog}
+            role="switch"
+            aria-checked={autoOpenLog}
+            aria-label="启动任务时自动打开日志"
+            onclick={() => app.setAutoOpenLogOnStart(!autoOpenLog)}
+          >
+            <span class="switch-knob"></span>
+          </button>
         </div>
-        <div class="setting-control">
-          <Select
-            value={showCustom ? OPEN_WITH_CUSTOM : currentOpenWith}
-            options={openWithOptions}
-            label="打开项目目录时使用"
-            onchange={pickOpenWith}
-          />
+      </div>
+    </section>
 
-          {#if showCustom}
-            <input
-              class="text-input"
-              type="text"
-              aria-label="自定义打开命令"
-              placeholder={"例如 code 或 code -n {path}"}
-              value={draft}
-              bind:this={customInput}
-              oninput={(e) => (draft = e.currentTarget.value)}
-              onfocus={() => (editing = true)}
-              onblur={commitCustom}
-              onkeydown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
+    <section class="group">
+      <div class="group-head">
+        <span class="group-name">打开方式</span>
+        <span class="group-rule"></span>
+      </div>
+
+      <div class="setting-list">
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-label">打开项目目录时使用</div>
+            <p class="setting-desc">
+              项目头部的「打开目录」按钮会用它打开当前项目。下拉框里只列本机扫描到的编辑器，
+              也可以填自定义命令：已经在 PATH 里的程序写名字即可，需要指定位置时用
+              <code>{"{path}"}</code> 代表项目目录；不写占位符时目录会追加到命令末尾。
+            </p>
+          </div>
+          <div class="setting-control">
+            <Select
+              value={showCustom ? OPEN_WITH_CUSTOM : currentOpenWith}
+              options={openWithOptions}
+              label="打开项目目录时使用"
+              onchange={pickOpenWith}
             />
-          {/if}
-        </div>
-      </div>
 
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-label">本机检测到的编辑器</div>
-          <p class="setting-desc">
-            {#if detected.length > 0}
-              扫到了 {detected.length} 个，来自 PATH 和常见安装目录。刚装完新的编辑器可以再扫一次。
-            {:else}
-              一个也没扫到，上面的列表退回内置预设；刚装完编辑器也可以再扫一次。
+            {#if showCustom}
+              <input
+                class="text-input"
+                type="text"
+                aria-label="自定义打开命令"
+                placeholder={"例如 code 或 code -n {path}"}
+                value={draft}
+                bind:this={customInput}
+                oninput={(e) => (draft = e.currentTarget.value)}
+                onfocus={() => (editing = true)}
+                onblur={commitCustom}
+                onkeydown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+              />
             {/if}
-          </p>
+          </div>
         </div>
-        <button class="btn" onclick={() => app.detectEditors()}>重新扫描</button>
-      </div>
-    </div>
-  </section>
 
-  <section class="group">
-    <div class="group-head">
-      <span class="group-name">本机配置</span>
-      <span class="group-rule"></span>
-    </div>
-
-    <div class="setting-list">
-      <div class="setting-row">
-        <div class="setting-text">
-          <div class="setting-label">配置文件</div>
-          <p class="setting-desc">
-            项目列表、启动项和本页的偏好都存在 <code>workspace.json</code> 里。仓库自带的
-            <code>.bootpane.json</code> 是另一份，只在该项目切到「项目内」时生效。
-          </p>
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-label">本机检测到的编辑器</div>
+            <p class="setting-desc">
+              {#if detected.length > 0}
+                扫到了 {detected.length} 个，来自 PATH 和常见安装目录。刚装完新的编辑器可以再扫一次。
+              {:else}
+                一个也没扫到，上面的列表退回内置预设；刚装完编辑器也可以再扫一次。
+              {/if}
+            </p>
+          </div>
+          <button class="btn" onclick={() => app.detectEditors()}>重新扫描</button>
         </div>
-        <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
       </div>
-    </div>
-  </section>
+    </section>
+
+    <section class="group">
+      <div class="group-head">
+        <span class="group-name">本机配置</span>
+        <span class="group-rule"></span>
+      </div>
+
+      <div class="setting-list">
+        <div class="setting-row">
+          <div class="setting-text">
+            <div class="setting-label">配置文件</div>
+            <p class="setting-desc">
+              项目列表、启动项和本页的偏好都存在 <code>workspace.json</code> 里。仓库自带的
+              <code>.bootpane.json</code> 是另一份，只在该项目切到「项目内」时生效。
+            </p>
+          </div>
+          <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
+        </div>
+      </div>
+    </section>
+  </div>
 </div>

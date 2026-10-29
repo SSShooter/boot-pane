@@ -43,24 +43,26 @@
     </div>
   </div>
 
-  {#if total === 0}
-    <div class="empty" style="height: auto; padding: 44px 0;">
-      <div class="empty-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
-          <path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z" />
-        </svg>
+  <div class="panel-body">
+    {#if total === 0}
+      <div class="empty" style="height: auto; padding: 44px 0;">
+        <div class="empty-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+            <path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z" />
+          </svg>
+        </div>
+        <h2>还没有星标任务</h2>
+        <p>
+          在任意项目的任务卡片右上角点一下星形图标，任务就会聚合到这里。
+          跨项目的常用按钮放在一起，可以一次性全部启动或全部停止。
+        </p>
       </div>
-      <h2>还没有星标任务</h2>
-      <p>
-        在任意项目的任务卡片右上角点一下星形图标，任务就会聚合到这里。
-        跨项目的常用按钮放在一起，可以一次性全部启动或全部停止。
-      </p>
-    </div>
-  {:else}
-    <div class="task-grid starred-grid">
-      {#each app.starredTasks as { project, task } (`${project.id}/${task.id}`)}
-        <TaskCard projectId={project.id} {task} showProject={project.name} />
-      {/each}
-    </div>
-  {/if}
+    {:else}
+      <div class="task-grid starred-grid">
+        {#each app.starredTasks as { project, task } (`${project.id}/${task.id}`)}
+          <TaskCard projectId={project.id} {task} showProject={project.name} />
+        {/each}
+      </div>
+    {/if}
+  </div>
 </div>

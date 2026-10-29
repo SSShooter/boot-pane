@@ -289,34 +289,52 @@ input {
 
 /* ---------- 主内容区 ---------- */
 
+/* 上中下三段是同一层 flex 兄弟：面板头 / 卡片区 / 日志抽屉。
+   只有中间那段滚，头和抽屉都是 flex: none 的行，永远不动。 */
 .content {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--bg);
 }
 
+/* 这一段自己不是滚动容器，只负责把面板撑满可用高度。滚的是面板里的
+   .panel-body：面板头在它外面，所以滚动条不会穿过顶栏。 */
+.content-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 面板整体是纵向 flex：头一行固定，正文一行伸展并自己滚。 */
 .panel {
-  /* 顶部留白交给 .panel-head 自己给：它要 sticky 贴顶，padding 得长在身上，
-     否则贴住之后面板上会空出 26px 白发。 */
-  padding: 0 28px 40px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   max-width: 940px;
 }
 
-/* 头部钉在顶部，不跟着卡片一起滚走：项目名、配置来源、生成/编辑/打开/移除
-   这几个按钮无论滚到哪一屏都得够得着。左右负边距把底色铺满整个面板宽度，
-   卡片从底下滚过去时被盖住，不会在留白处露出一条。 */
+/* 头部常驻：项目名、配置来源、生成/编辑/打开/移除这几个按钮不参与滚动。 */
 .panel-head {
-  position: sticky;
-  top: 0;
-  z-index: 5;
+  flex: none;
   display: flex;
   align-items: flex-start;
   gap: 16px;
-  margin: 0 -28px;
   padding: 26px 28px 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+}
+
+/* 唯一的滚动区：横幅、分组标题、任务卡片都在这里滚，头顶的头部不跟着走。 */
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 28px 40px;
 }
 
 .panel-title {
@@ -1475,24 +1493,17 @@ input {
 
 /* ---------- 日志抽屉 ---------- */
 
+/*
+ * 日志抽屉：不再是浮在内容上的 fixed 覆盖层，而是 .content 里的第二个
+ * flex 子项——固定高度、不参与伸缩，内容区滚动到哪都不会被它挡住。
+ */
 .log-drawer {
-  position: fixed;
-  /* 272px 对齐 .app 的侧边栏列宽，让抽屉只覆盖主内容区。 */
-  left: 272px;
-  right: 0;
-  bottom: 0;
+  flex: none;
   height: 320px;
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border-top: 1px solid var(--border-strong);
-  box-shadow: 0 -10px 28px rgba(28, 25, 23, 0.08);
-  z-index: 20;
-}
-
-/* 抽屉展开时给内容区留出底部空间，避免最后一行按钮被盖住。 */
-.app:has(~ .log-drawer) .content {
-  padding-bottom: 320px;
 }
 
 /* ---------- 日志标签条 ---------- */
