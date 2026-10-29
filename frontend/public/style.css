@@ -1529,25 +1529,61 @@ input {
 /* ---------- 日志标签条 ---------- */
 
 /*
- * 标签横向排，多了就滚动。
- * 容器自己不显示滚动条：30px 高的条子里再挖一条 10px 的滚动条，
- * 标签就只剩一半高度了。触控板和 shift+滚轮照样能横向滚。
+ * 标签横向排，多了就滚动；弹窗/收起图标放在同一行右端。
+ * 两者是并列的 flex 子项，不是叠在一起：标签永远不会钻到按钮底下被遮住一半。
+ * 宽度不够时标签条自己收缩滚动，右端的字再用一层渐隐化开，不至于被硬切。
  */
-.log-tabs {
+.log-tabs-row {
   display: flex;
   align-items: stretch;
   flex: none;
-  gap: 2px;
   height: 30px;
-  padding: 0 10px;
   background: var(--surface-sunk);
   border-bottom: 1px solid var(--border);
+}
+
+/* 容器自己不显示滚动条：30px 高的条子里再挖一条 10px 的滚动条，
+   标签就只剩一半高度了。触控板和 shift+滚轮照样能横向滚。 */
+.log-tabs {
+  display: flex;
+  align-items: stretch;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+  padding: 0 12px 0 10px;
   overflow-x: auto;
   scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 14px), transparent);
 }
 
 .log-tabs::-webkit-scrollbar {
   height: 0;
+}
+
+.log-tab-actions {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+  padding: 0 8px 0 2px;
+}
+
+/* 标签条上的图标按钮：跟着 30px 的条子走，比 .icon-btn 小一号。 */
+.log-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  color: var(--text-dim);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.log-tab-btn:hover {
+  background: var(--border-strong);
+  color: var(--text);
 }
 
 .log-tab {

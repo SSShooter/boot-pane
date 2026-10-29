@@ -12,6 +12,7 @@
   let { detached = false }: { detached?: boolean } = $props();
 
   let bodyEl: HTMLDivElement | undefined = $state();
+  let tabsEl: HTMLDivElement | undefined = $state();
   /** 用户是否停留在底部。往上翻看历史时不能强行拽回去。 */
   let stickToBottom = $state(true);
 
@@ -85,6 +86,13 @@
     });
   });
 
+  // 新开的标签可能被挤在标签条右侧看不见的地方。
+  // 切过去时把它滚进视野，否则点了「日志」会觉得什么都没发生。
+  $effect(() => {
+    void app.activeLogKey;
+    tabsEl?.querySelector<HTMLElement>(".log-tab.is-active")?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  });
+
   function onScroll(): void {
     const el = bodyEl;
     if (!el) return;
@@ -94,37 +102,75 @@
 
 {#if target}
   <aside class="log-drawer" class:is-window={detached} aria-label="运行日志">
-    <div class="log-tabs" role="tablist" aria-label="日志标签">
-      {#each tabs as tab (tab.key)}
-        <div class="log-tab" class:is-active={tab.key === app.activeLogKey}>
+    <div class="log-tabs-row">
+      <div class="log-tabs" role="tablist" aria-label="日志标签" bind:this={tabsEl}>
+        {#each tabs as tab (tab.key)}
+          <div class="log-tab" class:is-active={tab.key === app.activeLogKey}>
+            <button
+              class="log-tab-main"
+              role="tab"
+              aria-selected={tab.key === app.activeLogKey}
+              title={tab.title}
+              onclick={() => app.activateLog(tab.key)}
+            >
+              <span class="dot {tab.state}"></span>
+              {#if multiProject && tab.project}
+                <span class="log-tab-proj">{tab.project}</span>
+              {/if}
+              <span class="log-tab-name">{tab.label}</span>
+              {#if tab.unread}
+                <span class="log-tab-new" title="有新输出"></span>
+              {/if}
+            </button>
+            <button
+              class="log-tab-close"
+              aria-label={`关闭 ${tab.label} 的日志标签`}
+              title="关闭"
+              onclick={() => app.closeLogTab(tab.key)}
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                <line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" />
+              </svg>
+            </button>
+          </div>
+        {/each}
+      </div>
+
+      <div class="log-tab-actions">
+        {#if detached}
           <button
-            class="log-tab-main"
-            role="tab"
-            aria-selected={tab.key === app.activeLogKey}
-            title={tab.title}
-            onclick={() => app.activateLog(tab.key)}
+            class="log-tab-btn"
+            title="把日志面板收回主窗口"
+            aria-label="内嵌回主窗口"
+            onclick={() => app.embedLog()}
           >
-            <span class="dot {tab.state}"></span>
-            {#if multiProject && tab.project}
-              <span class="log-tab-proj">{tab.project}</span>
-            {/if}
-            <span class="log-tab-name">{tab.label}</span>
-            {#if tab.unread}
-              <span class="log-tab-new" title="有新输出"></span>
-            {/if}
-          </button>
-          <button
-            class="log-tab-close"
-            aria-label={`关闭 ${tab.label} 的日志标签`}
-            title="关闭"
-            onclick={() => app.closeLogTab(tab.key)}
-          >
-            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-              <line x1="5" y1="5" x2="19" y2="19" /><line x1="19" y1="5" x2="5" y2="19" />
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3v10" /><path d="m8 9 4 4 4-4" /><path d="M4 19h16" />
             </svg>
           </button>
-        </div>
-      {/each}
+        {:else}
+          <button
+            class="log-tab-btn"
+            title="把整个日志面板弹到独立窗口"
+            aria-label="弹窗"
+            onclick={() => app.detachLog()}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 4h6v6" /><path d="M20 4 12 12" /><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+            </svg>
+          </button>
+          <button
+            class="log-tab-btn"
+            title="收起日志面板"
+            aria-label="收起"
+            onclick={() => app.closeLog()}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 6h14" /><path d="m7 11 5 5 5-5" />
+            </svg>
+          </button>
+        {/if}
+      </div>
     </div>
 
     <header class="log-head">
@@ -150,20 +196,6 @@
       <span class="foot-gap"></span>
 
       <button class="btn btn-ghost btn-mini" onclick={() => app.clearLog()}>清空</button>
-      {#if detached}
-        <button
-          class="btn btn-ghost btn-mini"
-          title="把日志面板收回主窗口"
-          onclick={() => app.embedLog()}
-        >内嵌</button>
-      {:else}
-        <button
-          class="btn btn-ghost btn-mini"
-          title="把整个日志面板弹到独立窗口"
-          onclick={() => app.detachLog()}
-        >弹窗</button>
-        <button class="btn btn-ghost btn-mini" onclick={() => app.closeLog()}>收起</button>
-      {/if}
     </header>
 
     <div class="log-body" bind:this={bodyEl} onscroll={onScroll}>
