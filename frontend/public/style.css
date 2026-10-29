@@ -21,6 +21,8 @@
   --star-ink: #b45309;
   --radius: 10px;
   --radius-sm: 7px;
+  --rail-w: 272px;
+  --titlebar-h: 36px;
   --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, monospace;
   --sans: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
 }
@@ -89,8 +91,94 @@ input {
 
 .app {
   display: grid;
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
   height: 100vh;
+}
+
+/* 自绘标题栏时多占一行：窗口按钮和品牌都在这一行里，下面的内容区照常撑满。 */
+.app.has-titlebar {
+  grid-template-rows: var(--titlebar-h) minmax(0, 1fr);
+}
+
+/* ---------- 自绘标题栏（Windows 无边框窗口） ---------- */
+
+.titlebar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: stretch;
+  height: var(--titlebar-h);
+  background: var(--bg);
+  user-select: none;
+  /* runtime 靠这个自定义属性认拖拽区；按钮那边要显式设成 no-drag，
+     否则点在窗口按钮上也会变成拖窗，点不出反应。 */
+  --wails-draggable: drag;
+}
+
+/* 左格刻意和侧栏同宽、同底色：视觉上侧栏一路顶到窗口上沿，
+   标题栏只是从它头顶横过去。 */
+.titlebar-brand {
+  width: var(--rail-w);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  background: var(--bg-rail);
+  border-right: 1px solid var(--border);
+}
+
+/* 应用图标缩到 24px 当品牌标：圆角裁一下，跟原来那个方块标占位一致。
+   36px 的标题栏里上下各留 6px，再大就压到栏线了。 */
+.brand-mark {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 7px;
+  object-fit: cover;
+  display: block;
+}
+
+.brand-name {
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.titlebar-drag {
+  flex: 1;
+  min-width: 0;
+}
+
+.win-ctrls {
+  flex: none;
+  display: flex;
+  --wails-draggable: no-drag;
+}
+
+.win-btn {
+  width: 46px;
+  display: grid;
+  place-items: center;
+  color: var(--text-dim);
+}
+
+.win-btn:hover {
+  background: #e9e9e6;
+  color: var(--text);
+}
+
+.win-btn:active {
+  background: #dedcda;
+}
+
+.win-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+.win-close:active {
+  background: #b32a1c;
+  color: #fff;
 }
 
 /* ---------- 侧边栏 ---------- */
@@ -106,30 +194,8 @@ input {
 .rail-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 16px 14px 12px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.01em;
-}
-
-.brand-mark {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
-  background: var(--text);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 700;
+  gap: 6px;
+  padding: 12px 12px 10px;
 }
 
 .icon-btn {
@@ -147,12 +213,9 @@ input {
   color: var(--text);
 }
 
-.search-wrap {
-  padding: 0 14px 10px;
-}
-
 .search {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   height: 30px;
   padding: 0 10px;
   border: 1px solid var(--border);

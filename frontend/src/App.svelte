@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Sidebar from "./components/Sidebar.svelte";
+  import TitleBar from "./components/TitleBar.svelte";
   import ProjectPanel from "./components/ProjectPanel.svelte";
   import StarredPanel from "./components/StarredPanel.svelte";
   import SettingsPanel from "./components/SettingsPanel.svelte";
@@ -9,6 +10,7 @@
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
+  import { customChrome } from "./lib/chrome";
 
   onMount(() => {
     // 先订阅再拉数据，否则「拉取期间刚好有进程状态变化」会漏掉。
@@ -18,7 +20,11 @@
   });
 </script>
 
-<div class="app">
+<div class="app" class:has-titlebar={customChrome}>
+  {#if customChrome}
+    <TitleBar />
+  {/if}
+
   <Sidebar />
 
   <!-- 主内容区是纵向 flex：面板自己再分「固定头 + 滚动正文」两行，

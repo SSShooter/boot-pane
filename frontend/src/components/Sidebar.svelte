@@ -56,16 +56,12 @@
 
 <aside class="rail">
   <div class="rail-head">
-    <div class="brand"><span class="brand-mark">B</span> bootpane</div>
+    <input class="search" placeholder="搜索项目 / 标签" bind:value={query} spellcheck="false" />
     <button class="icon-btn" title="添加项目" aria-label="添加项目" onclick={pickFolder}>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
       </svg>
     </button>
-  </div>
-
-  <div class="search-wrap">
-    <input class="search" placeholder="搜索项目 / 标签" bind:value={query} spellcheck="false" />
   </div>
 
   <div class="rail-list">

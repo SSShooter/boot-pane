@@ -4,6 +4,7 @@ import (
 	"embed"
 	"log"
 	"os"
+	"runtime"
 	"sync/atomic"
 
 	"bootpane/internal/config"
@@ -82,6 +83,11 @@ func main() {
 		Height:           760,
 		BackgroundColour: application.NewRGB(250, 250, 249),
 		URL:              "/",
+		// Windows 上去掉系统标题栏，改由前端 TitleBar.svelte 画：系统标题栏
+		// 里已经写着一次应用名，再和侧栏品牌并列就重复了，还白占一行高度。
+		// macOS 相反，保留系统交通灯、只藏标题栏文字，所以这里不能一刀切。
+		// 前端 lib/chrome.ts 的 customChrome 必须和这个判断保持一致。
+		Frameless: runtime.GOOS == "windows",
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,
