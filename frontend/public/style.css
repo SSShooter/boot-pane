@@ -1688,7 +1688,8 @@ input {
 
 /*
  * 日志抽屉：不再是浮在内容上的 fixed 覆盖层，而是 .content 里的第二个
- * flex 子项——固定高度、不参与伸缩，内容区滚动到哪都不会被它挡住。
+ * flex 子项——高度由 LogPanel.svelte 里的抽屉高度状态决定（默认 320px，
+ * 顶边把手可拖拽调整），内容区滚动到哪都不会被它挡住。
  */
 .log-drawer {
   flex: none;
@@ -1697,6 +1698,45 @@ input {
   flex-direction: column;
   background: var(--surface);
   border-top: 1px solid var(--border-strong);
+  /* 拖拽把手以顶边为基准绝对定位。 */
+  position: relative;
+}
+
+/*
+ * 拖拽调高把手：叠在抽屉顶边上下各占几像素，平时隐形，悬停/拖拽时
+ * 亮出一条和边框同色的提示线。不占布局空间，不影响内部滚动。
+ */
+.log-resize {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+  z-index: 5;
+  touch-action: none;
+}
+
+.log-resize::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.log-resize:hover::after,
+.log-resize.is-active::after {
+  background: var(--accent-line);
+}
+
+/* 拖拽期间全局禁选文本、锁定光标，避免划过日志正文时触发选择。 */
+body.is-log-resizing {
+  cursor: row-resize;
+  user-select: none;
 }
 
 /* ---------- 独立日志窗口 ---------- */

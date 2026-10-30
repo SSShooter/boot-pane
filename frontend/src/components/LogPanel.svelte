@@ -16,6 +16,62 @@
   /** 用户是否停留在底部。往上翻看历史时不能强行拽回去。 */
   let stickToBottom = $state(true);
 
+  /*
+   * 内嵌形态的抽屉高度：顶边有个拖拽把手，按住上下拖就改这里。
+   * 独立窗口形态撑满窗口，不用这套。高度记进 localStorage，
+   * 重启后沿用上次调的值；双击把手恢复默认。
+   */
+  const DRAWER_DEFAULT = 320;
+  const DRAWER_MIN = 140;
+  const DRAWER_STORE_KEY = "bootpane.logDrawerHeight";
+
+  let drawerHeight = $state(loadDrawerHeight());
+
+  function loadDrawerHeight(): number {
+    const raw = Number(localStorage.getItem(DRAWER_STORE_KEY));
+    if (Number.isFinite(raw) && raw >= DRAWER_MIN) return raw;
+    return DRAWER_DEFAULT;
+  }
+
+  /** 拖拽进行中。模板里用它亮出把手提示线，所以得是响应式的。 */
+  let resizing = $state(false);
+  let resizeStartY = 0;
+  let resizeStartHeight = 0;
+
+  /** 拖不到天上去：至少给上面的内容留一截。 */
+  function drawerMax(): number {
+    return Math.max(DRAWER_MIN, window.innerHeight - 120);
+  }
+
+  function startResize(e: PointerEvent): void {
+    resizing = true;
+    resizeStartY = e.clientY;
+    resizeStartHeight = drawerHeight;
+    // capture 之后指针移出把手也照样收 move/up，不用再挂 window 监听。
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    document.body.classList.add("is-log-resizing");
+  }
+
+  function onResizeMove(e: PointerEvent): void {
+    if (!resizing) return;
+    // 把手在抽屉顶边：往上拖（dy 为正）抽屉变高。
+    const dy = resizeStartY - e.clientY;
+    drawerHeight = Math.min(Math.max(resizeStartHeight + dy, DRAWER_MIN), drawerMax());
+  }
+
+  function endResize(e: PointerEvent): void {
+    if (!resizing) return;
+    resizing = false;
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    document.body.classList.remove("is-log-resizing");
+    localStorage.setItem(DRAWER_STORE_KEY, String(Math.round(drawerHeight)));
+  }
+
+  function resetHeight(): void {
+    drawerHeight = DRAWER_DEFAULT;
+    localStorage.setItem(DRAWER_STORE_KEY, String(DRAWER_DEFAULT));
+  }
+
   /** 标签条要显示的东西：任务名、所属项目、运行时状态、有没有新输出。 */
   const tabs = $derived(
     app.logTabs.map((tab) => {
@@ -101,7 +157,30 @@
 </script>
 
 {#if target}
-  <aside class="log-drawer" class:is-window={detached} aria-label="运行日志">
+  <aside
+    class="log-drawer"
+    class:is-window={detached}
+    class:is-resizing={resizing}
+    style:height={detached ? undefined : `${drawerHeight}px`}
+    aria-label="运行日志"
+  >
+    {#if !detached}
+      <!-- 拖拽调高把手：绝对定位叠在抽屉顶边上，不占布局空间。
+           双击恢复默认高度。 -->
+      <div
+        class="log-resize"
+        class:is-active={resizing}
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="拖拽调整日志面板高度"
+        title="拖拽调整高度，双击恢复默认"
+        onpointerdown={startResize}
+        onpointermove={onResizeMove}
+        onpointerup={endResize}
+        onpointercancel={endResize}
+        ondblclick={resetHeight}
+      ></div>
+    {/if}
     <div class="log-tabs-row">
       <div class="log-tabs" role="tablist" aria-label="日志标签" bind:this={tabsEl}>
         {#each tabs as tab (tab.key)}
