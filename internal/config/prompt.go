@@ -19,6 +19,8 @@ import (
 //     `PORT=5173 pnpm dev` 这种前缀赋值直接报错。
 //   - waitFor 要给出「拿不准就省略」的出路。猜错端口的后果不是简单失败：
 //     Manager.fail 只改状态不杀进程，用户会看到「失败」而服务其实是活的。
+//     所以引导模型优先用日志标记（log），端口只在真实读到时才写；
+//     waitPort 本身已做 IPv4/IPv6 双栈探测，只绑 [::1] 的服务（如 WXT）不会误判。
 //   - shell 名字从 pty 拿，业务层不判断平台。
 func BuildPrompt(p ResolvedProject) string {
 	shell := pty.ShellDescription()
@@ -52,13 +54,18 @@ func BuildPrompt(p ResolvedProject) string {
 		"找不到就不要写端口。",
 		"",
 		"【就绪判定 waitFor】",
-		"BootPane 靠它判断「启动完成」，三选一：",
-		`1. 确定了端口：{ "type": "port", "port": 5173, "timeout": 60 }`,
-		"2. 端口不确定，但启动输出里有稳定出现、且只在就绪之后才出现的原文：",
+		"BootPane 靠它判断「启动完成」，三选一，优先级从高到低：",
+		"1. 启动输出里有稳定出现、且只在就绪之后才出现的原文（首选，最不容易误判）：",
 		`   { "type": "log", "log": "ready in", "timeout": 120 }`,
 		"   log 是大小写敏感的原文子串匹配，不是正则，不要改写大小写。",
+		"   典型可靠的标记：vite 的 ready in、WXT 的 Started dev server、",
+		"   Spring 的 Started ... in、Go 服务的 listening on。照抄启动输出原文，不要概括。",
+		"2. 端口号确认无误（从配置文件或启动输出里真实读到）：",
+		`   { "type": "port", "port": 5173, "timeout": 60 }`,
+		"   端口探测同时拨 IPv4 和 IPv6，只监听 [::1] 的服务也能正确判定。",
 		"3. 两者都拿不准：整个省略 waitFor 字段。",
-		"timeout 单位是秒。猜一个端口比不写更糟——猜错会让任务被标成失败，而进程其实还在跑。",
+		"timeout 单位是秒。宁可降级用 log 或省略，也不要写一个没验证过的端口——",
+		"猜错会让任务被标成失败，而进程其实还在跑。",
 		"",
 		"【页面地址 openUrl】",
 		"如果这条任务是能在浏览器里直接看的页面（网页端 / h5 / 管理后台），把访问地址写进 openUrl，",
@@ -106,7 +113,7 @@ func BuildPrompt(p ResolvedProject) string {
 		`      "command": "pnpm dev:h5",`,
 		`      "cwd": "",`,
 		`      "env": { "PORT": "5173" },`,
-		`      "waitFor": { "type": "port", "port": 5173, "timeout": 60 },`,
+		`      "waitFor": { "type": "log", "log": "ready in", "timeout": 120 },`,
 		`      "openUrl": "http://localhost:5173"`,
 		"    },",
 		"    {",

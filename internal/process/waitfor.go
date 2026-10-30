@@ -26,19 +26,28 @@ const (
 //
 // 不用一次 Dial 死等：连不上会立刻返回错误，反复探测才能真正捕捉到
 // 「进程刚起来、端口刚 listen」的那一刻。
+//
+// IPv4 / IPv6 双栈都要拨。Node 生态按环境不同可能只绑其中一边
+// （比如 WXT dev server 只监听 [::1]，127.0.0.1 直接 connection refused），
+// 只拨 IPv4 会把活的服务误判成启动失败。
 func waitPort(ctx context.Context, port int) error {
 	if port <= 0 {
 		return fmt.Errorf("waitFor.port 配置无效: %d", port)
 	}
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
+	addrs := []string{
+		fmt.Sprintf("127.0.0.1:%d", port),
+		fmt.Sprintf("[::1]:%d", port),
+	}
 	ticker := time.NewTicker(portPollInterval)
 	defer ticker.Stop()
 
 	for {
-		conn, err := net.DialTimeout("tcp", addr, portDialTimeout)
-		if err == nil {
-			_ = conn.Close()
-			return nil
+		for _, addr := range addrs {
+			conn, err := net.DialTimeout("tcp", addr, portDialTimeout)
+			if err == nil {
+				_ = conn.Close()
+				return nil
+			}
 		}
 		select {
 		case <-ctx.Done():
