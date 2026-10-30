@@ -94,32 +94,6 @@ func (s *Store) save() error {
 	return os.Rename(tmp, s.FilePath())
 }
 
-// SeedIfEmpty 在注册表为空时，把给定的目录作为初始项目写入。
-// 只在开发或首次运行时使用，避免用户打开应用看到一片空白。
-func (s *Store) SeedIfEmpty(paths ...string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.ws.Projects) > 0 {
-		return nil
-	}
-	for _, p := range paths {
-		abs, err := filepath.Abs(p)
-		if err != nil {
-			continue
-		}
-		abs = filepath.Clean(abs)
-		s.ws.Projects = append(s.ws.Projects, Project{
-			ID:   makeID(abs),
-			Name: filepath.Base(abs),
-			Path: abs,
-		})
-	}
-	if len(s.ws.Projects) == 0 {
-		return nil
-	}
-	return s.save()
-}
-
 // Projects 返回所有项目的合并视图，按「置顶 + 名称」排序。
 func (s *Store) Projects() []ResolvedProject {
 	s.mu.RLock()

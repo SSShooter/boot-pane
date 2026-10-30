@@ -3,7 +3,6 @@ package main
 import (
 	"embed"
 	"log"
-	"os"
 	"runtime"
 	"sync/atomic"
 
@@ -22,14 +21,6 @@ func main() {
 	store, err := config.NewStore()
 	if err != nil {
 		log.Fatalf("初始化配置失败: %v", err)
-	}
-
-	// 首次运行时把当前工作目录登记为初始项目，避免打开应用看到一片空白。
-	// 打包后工作目录是程序所在目录，通常没有 go.mod，这段不会生效。
-	if wd, err := os.Getwd(); err == nil {
-		if _, statErr := os.Stat(wd + string(os.PathSeparator) + "go.mod"); statErr == nil {
-			_ = store.SeedIfEmpty(wd)
-		}
 	}
 
 	// 事件出口用原子指针延迟绑定：进程管理器要先进 Services，而 app 得等
