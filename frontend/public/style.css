@@ -35,6 +35,9 @@
   --radius-sm: 7px;
   --rail-w: 272px;
   --titlebar-h: 36px;
+  /* macOS 顶部留白高度。必须和 main.go 里 Mac.InvisibleTitleBarHeight
+     保持一致：顶部这一段是系统隐形拖拽区，点不到也放不了内容。 */
+  --mac-inset-h: 50px;
   --mono: "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, monospace;
   --sans: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
   /* 让原生控件（textarea 滚动条、下拉、日期选择器）跟着走深色，
@@ -118,6 +121,11 @@ input {
 /* 自绘标题栏时多占一行：窗口按钮和品牌都在这一行里，下面的内容区照常撑满。 */
 .app.has-titlebar {
   grid-template-rows: var(--titlebar-h) minmax(0, 1fr);
+}
+
+/* macOS 同理多占一行，但高度按隐形拖拽区让足 50px。 */
+.app.mac-inset {
+  grid-template-rows: var(--mac-inset-h) minmax(0, 1fr);
 }
 
 /* ---------- 自绘标题栏（Windows 无边框窗口） ---------- */
@@ -205,6 +213,17 @@ input {
 .win-close:active {
   background: #b32a1c;
   color: #fff;
+}
+
+/* macOS 版标题栏：结构复用上面的 .titlebar，只改高度，交通灯由系统画。 */
+.mac-titlebar {
+  height: var(--mac-inset-h);
+}
+
+/* 交通灯占在左上角（大约到 x=70），品牌整体往右让开，
+   正好落在侧栏那一格的中间偏左，视觉上和 Windows 版一致。 */
+.mac-brand {
+  padding-left: 84px;
 }
 
 /* ---------- 侧边栏 ---------- */

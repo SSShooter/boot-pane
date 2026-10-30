@@ -11,10 +11,17 @@ import type { RestartResult } from "../../bindings/bootpane/models";
 import { mockApi } from "./devmock";
 
 /**
- * WebView2 会注入 chrome.webview，普通浏览器没有。
- * 用它判断当前是不是跑在桌面壳里，比探测 Wails 内部字段稳定。
+ * 判断当前是不是跑在桌面壳里。
+ *
+ * WebView2（Windows）会注入 chrome.webview；macOS 的 WKWebView 没有这个字段，
+ * 但 Wails runtime 会在任何业务脚本执行前就把 window._wails 挂上去（environment
+ * 等字段是后到的，壳本身是同步就位），用它兜底。漏判的代价很实在：macOS 的 dev
+ * 窗口会掉进预览模式——_bindings 调不到还是小事，macChrome 跟着误判成 false，
+ * 顶部留白和品牌整个消失，交通灯直接压在侧栏搜索框上。
  */
-const inWebView = typeof window !== "undefined" && !!(window as any).chrome?.webview;
+const inWebView =
+  typeof window !== "undefined" &&
+  (!!(window as any).chrome?.webview || !!(window as any)._wails);
 
 /** 纯浏览器里跑 vite dev 时走假数据，方便调 UI。 */
 export const isPreview = import.meta.env.DEV && !inWebView;

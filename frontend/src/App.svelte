@@ -10,7 +10,7 @@
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
-  import { customChrome } from "./lib/chrome";
+  import { customChrome, macChrome } from "./lib/chrome";
 
   onMount(() => {
     // 先订阅再拉数据，否则「拉取期间刚好有进程状态变化」会漏掉。
@@ -20,9 +20,19 @@
   });
 </script>
 
-<div class="app" class:has-titlebar={customChrome}>
+<div class="app" class:has-titlebar={customChrome} class:mac-inset={macChrome}>
   {#if customChrome}
     <TitleBar />
+  {:else if macChrome}
+    <!-- macOS：交通灯由系统画在左上角，这里不重复画窗口按钮，只补一行
+         留白把内容压到隐形拖拽区之下，顺带把品牌露在交通灯右边。 -->
+    <div class="titlebar mac-titlebar">
+      <div class="titlebar-brand mac-brand">
+        <img class="brand-mark" src="/favicon.png" alt="" />
+        <span class="brand-name">BootPane</span>
+      </div>
+      <div class="titlebar-drag"></div>
+    </div>
   {/if}
 
   <Sidebar />
