@@ -268,12 +268,12 @@ input {
 }
 
 .proj-item {
+  position: relative;
   display: block;
   width: 100%;
   text-align: left;
   padding: 8px 10px;
   border-radius: var(--radius-sm);
-  border-left: 2px solid transparent;
   margin-bottom: 2px;
 }
 
@@ -281,10 +281,22 @@ input {
   background: var(--hover);
 }
 
+/* 选中标记是卡片内侧一条上下都收进去的竖线，不是 border-left：
+   卡片带 7px 圆角，画在边框上的竖线会被圆角掰成一个金色钩子。 */
 .proj-item.is-active {
   background: var(--surface);
-  border-left-color: var(--accent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.proj-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--accent);
 }
 
 .proj-row {
