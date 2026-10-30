@@ -18,9 +18,9 @@
 
 **启动与停止**
 
-- 用 ConPTY 起真正的终端会话，`pnpm`、`vite` 这类带进度条和颜色的输出原样保留
+- 跑在真终端里（Windows 上走 ConPTY），`pnpm`、`vite` 这类带进度条和颜色的输出原样保留
 - 「启动中」和「运行中」分开：只有 `waitFor` 条件满足才算就绪，前端不自己猜状态
-- 停止时按 Job Object 终止整棵进程树，不会留下占着端口的 node
+- 停止时连整棵进程树一起收（Windows 上由 Job Object 兜底），不会留下占着端口的 node
 - 有任务在跑时关窗口会先问一句，避免手滑把所有 dev server 掐掉
 
 **端口与日志**
@@ -38,7 +38,7 @@
 
 ## 平台支持
 
-目前只支持 **Windows 10/11**：启动走 ConPTY，进程树靠 Job Object，端口反查与终止走 Toolhelp。
+目前实际可用的只有 **Windows 10/11**：启动走 ConPTY，进程树靠 Job Object，端口反查与终止走 Toolhelp。跨平台是设计目标而不是现状。
 
 macOS / Linux 的 `pty`、`proctree`、`prockill` 接口已经按最终形态留好（`_unix.go` 里是待实现的桩），业务层没有 `runtime.GOOS` 分支，补平台只需要填这几个文件。
 
