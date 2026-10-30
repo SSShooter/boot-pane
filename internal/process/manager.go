@@ -146,8 +146,9 @@ func NewManager(emit Emitter) *Manager {
 
 // Start 启动一个任务。
 //
-// 完整链路：建 Job Object → 用 ConPTY 启动 shell（同一次 CreateProcess 挂上
-// Job）→ 起日志泵 → 等 WaitFor 就绪 → 进程退出时收尾。
+// 完整链路：建进程树容器 → 用伪终端启动 shell（Windows 在同一次
+// CreateProcess 里挂上 Job Object；Unix 由 Setsid 定好进程组后 Attach 登记）
+// → 起日志泵 → 等 WaitFor 就绪 → 进程退出时收尾。
 //
 // 返回 nil 不代表启动成功，只代表「已经开始尝试」。真正的成败通过事件推给前端，
 // 因为就绪判定是异步的，同步等它会把 UI 卡住。
@@ -205,6 +206,12 @@ func (m *Manager) Start(projectID string, task config.Task, root string) error {
 		m.fail(key, "启动失败："+err.Error())
 		return nil
 	}
+
+	// Unix 在这里登记 pgid（== shell PID，启动时 Setsid 定好的）；
+	// Windows 上进程出生即在 Job 里，Attach 是空操作。
+	// 必须在把 grp 暴露给 Stop / Shutdown 之前完成，否则存在「任务刚启动
+	// 就被停掉，但容器还不知道组 ID」的竞态窗口。
+	grp.Attach(sess.Pid())
 
 	m.mu.Lock()
 	r.group = grp

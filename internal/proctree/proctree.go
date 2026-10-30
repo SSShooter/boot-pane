@@ -21,9 +21,18 @@ type Group interface {
 	// Handle 返回底层容器的原生句柄，供上层在创建进程时一次性挂载。
 	//
 	// Windows 返回 Job Object 句柄，pty 会把它塞进 STARTUPINFOEX 属性列表，
-	// 保证进程一生出来就在 Job 里。Unix 返回 0——那边靠 Setpgid 在启动时
+	// 保证进程一生出来就在 Job 里。Unix 返回 0——那边靠 Setsid 在启动时
 	// 定好进程组，不需要预先挂载。
 	Handle() uintptr
+
+	// Attach 把刚启动的 shell 会话登记进组。
+	//
+	// Windows 上进程在 CreateProcess 的同一次调用里就挂进了 Job Object，
+	// 这里是空操作；Unix 没有「先建容器再生进程」的原语，进程组归属由
+	// 启动时的 SysProcAttr 一次性定好，pty 启动成功后调这里把组 ID
+	// （== shell 的 PID）记下来。Start 链路里 Attach 必须发生在任何
+	// Kill 之前，Manager 的实现保证了这一点。
+	Attach(pid int)
 
 	// Kill 终止整棵进程树，包括已经脱离父进程的孙子进程。幂等。
 	Kill() error

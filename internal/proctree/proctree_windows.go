@@ -38,6 +38,9 @@ type windowsGroup struct {
 
 func (g *windowsGroup) Handle() uintptr { return g.handle }
 
+// Attach Windows 上进程出生即在 Job 里，没有「启动后再登记」这一步。
+func (g *windowsGroup) Attach(int) {}
+
 // Kill 用 TerminateJobObject 一次性清空整个 Job。
 //
 // 比 EnumProcesses + 逐个 TerminateProcess 可靠：后者要自己维护父子关系，
