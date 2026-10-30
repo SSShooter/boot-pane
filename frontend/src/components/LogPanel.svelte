@@ -63,7 +63,7 @@
     const info = target?.portInfo;
     if (!info?.listening) return "";
     const who = info.process ? `${info.process}（PID ${info.pid}）` : `PID ${info.pid}`;
-    return `端口 ${info.port} 正被 ${who} 占用，不是 bootpane 启动的。`;
+    return `端口 ${info.port} 正被 ${who} 占用，不是 BootPane 启动的。`;
   });
 
   // 日志变化后，只要用户还在底部就跟着滚到底。

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": {
-    "name": "bootpane",
+    "name": "BootPane",
     "tags": ["wails3", "svelte"]
   },
   "tasks": [

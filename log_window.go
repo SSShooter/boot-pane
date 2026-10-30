@@ -93,7 +93,7 @@ func (s *LogWindowService) Open(state string) error {
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             logWindowName,
-		Title:            "运行日志 · bootpane",
+		Title:            "运行日志 · BootPane",
 		Width:            880,
 		Height:           520,
 		MinWidth:         480,

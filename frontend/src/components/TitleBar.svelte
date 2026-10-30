@@ -42,7 +42,7 @@
 <div class="titlebar" role="presentation" ondblclick={onDblClick}>
   <div class="titlebar-brand">
     <img class="brand-mark" src="/favicon.png" alt="" />
-    <span class="brand-name">bootpane</span>
+    <span class="brand-name">BootPane</span>
   </div>
 
   <!-- 中间整段放空：按住拖动由 runtime 认到 --wails-draggable 后转给系统拖窗，

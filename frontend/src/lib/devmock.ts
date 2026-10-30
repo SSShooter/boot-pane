@@ -110,7 +110,7 @@ export const mockProjects: ResolvedProject[] = [
   brokenProject,
 ];
 
-const mockPrompt = `我要给下面这个项目配置 bootpane 的启动按钮。bootpane 是项目启动器，一个按钮对应一条长期运行的启动命令。
+const mockPrompt = `我要给下面这个项目配置 BootPane 的启动按钮。BootPane 是项目启动器，一个按钮对应一条长期运行的启动命令。
 
 项目根目录：
     D:\\code\\my-shop

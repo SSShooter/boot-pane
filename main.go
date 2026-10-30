@@ -57,7 +57,7 @@ func main() {
 	logWindow := NewLogWindowService()
 
 	app := application.New(application.Options{
-		Name:        "bootpane",
+		Name:        "BootPane",
 		Description: "项目启动器",
 		Services: []application.Service{
 			application.NewService(NewConfigService(store)),
@@ -78,7 +78,7 @@ func main() {
 	logWindow.attach(app)
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "bootpane",
+		Title:            "BootPane",
 		Width:            1180,
 		Height:           760,
 		// 和 style.css 的 --bg 保持一致：首帧渲染前窗口是这块色，对不上就会闪一下白。

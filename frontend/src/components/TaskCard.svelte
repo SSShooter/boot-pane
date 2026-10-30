@@ -32,7 +32,7 @@
     const who = portInfo.process
       ? `${portInfo.process}（PID ${portInfo.pid}）`
       : `PID ${portInfo.pid}`;
-    return `端口 ${portInfo.port} 正被 ${who} 占用，不是 bootpane 启动的。点「重启」会先终止它再重新启动。`;
+    return `端口 ${portInfo.port} 正被 ${who} 占用，不是 BootPane 启动的。点「重启」会先终止它再重新启动。`;
   });
 
   const restarting = $derived(!!app.restarting[`${projectId}/${task.id}`]);

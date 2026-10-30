@@ -24,7 +24,7 @@ func BuildPrompt(p ResolvedProject) string {
 	shell := pty.ShellDescription()
 
 	lines := []string{
-		"我要给下面这个项目配置 bootpane 的启动按钮。bootpane 是项目启动器，一个按钮对应一条长期运行的启动命令。",
+		"我要给下面这个项目配置 BootPane 的启动按钮。BootPane 是项目启动器，一个按钮对应一条长期运行的启动命令。",
 		"",
 		"项目根目录：",
 		"    " + p.Path,
@@ -52,7 +52,7 @@ func BuildPrompt(p ResolvedProject) string {
 		"找不到就不要写端口。",
 		"",
 		"【就绪判定 waitFor】",
-		"bootpane 靠它判断「启动完成」，三选一：",
+		"BootPane 靠它判断「启动完成」，三选一：",
 		`1. 确定了端口：{ "type": "port", "port": 5173, "timeout": 60 }`,
 		"2. 端口不确定，但启动输出里有稳定出现、且只在就绪之后才出现的原文：",
 		`   { "type": "log", "log": "ready in", "timeout": 120 }`,
