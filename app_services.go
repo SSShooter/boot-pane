@@ -3,13 +3,12 @@ package main
 import (
 	"fmt"
 	"net"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
 	"bootpane/internal/config"
 	"bootpane/internal/editors"
+	"bootpane/internal/host"
 	"bootpane/internal/portinfo"
 	"bootpane/internal/process"
 	"bootpane/internal/prockill"
@@ -52,9 +51,9 @@ func (c *ConfigService) OpenProjectDir(id string) error {
 		return err
 	}
 	if command := c.store.Settings().OpenWith; command != "" {
-		return launchOpenWith(command, p.Path)
+		return host.LaunchOpenWith(command, p.Path)
 	}
-	return revealPath(p.Path)
+	return host.Reveal(p.Path)
 }
 
 // SetOpenWith 设置「打开目录」使用的命令，传空字符串表示回到系统文件管理器。
@@ -64,7 +63,7 @@ func (c *ConfigService) OpenProjectDir(id string) error {
 func (c *ConfigService) SetOpenWith(command string) error {
 	command = strings.TrimSpace(command)
 	if command != "" {
-		if _, err := lookupOpenWith(command); err != nil {
+		if _, err := host.LookupOpenWith(command); err != nil {
 			return err
 		}
 	}
@@ -81,7 +80,7 @@ func (c *ConfigService) DetectEditors() []editors.Editor {
 
 // OpenConfigDir 打开全局配置所在目录。
 func (c *ConfigService) OpenConfigDir() error {
-	return revealPath(c.store.Dir())
+	return host.Reveal(c.store.Dir())
 }
 
 // OpenTaskPage 在系统默认浏览器里打开任务对应的页面。
@@ -102,7 +101,7 @@ func (c *ConfigService) OpenTaskPage(id, taskID string) error {
 		if page == "" {
 			return fmt.Errorf("任务 %q 没有可打开的页面", t.Label)
 		}
-		return openExternalURL(page)
+		return host.OpenExternalURL(page)
 	}
 	return fmt.Errorf("任务 %q 不存在", taskID)
 }
@@ -388,18 +387,4 @@ func (p *ProcessService) StopTask(projectID, taskID string) error {
 // StopProject 停止项目下所有任务。
 func (p *ProcessService) StopProject(projectID string) error {
 	return p.mgr.StopProject(projectID)
-}
-
-// revealPath 调用系统文件管理器定位到指定路径。
-func revealPath(path string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("explorer", path)
-	case "darwin":
-		cmd = exec.Command("open", path)
-	default:
-		cmd = exec.Command("xdg-open", path)
-	}
-	return cmd.Start()
 }

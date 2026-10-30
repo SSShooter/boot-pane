@@ -1,12 +1,14 @@
-package main
+// Package quitguard 管「关窗口时还有任务在跑」这一档交互。
+//
+// 它不碰窗口和进程，只拿三个函数：查运行中任务、真正退出、推事件给前端。
+// 这样状态机能单独测——不用起应用，也不用真去关一个窗口。
+package quitguard
 
 import (
 	"sync"
 	"time"
 
 	"bootpane/internal/process"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
 // EventCloseRequest 在用户关窗口、但还有任务在运行时推给前端。
@@ -15,16 +17,16 @@ import (
 // 要么什么都不做——超时后按「停止并退出」兜底，免得界面挂了连窗口都关不掉。
 const EventCloseRequest = "bootpane:close-request"
 
-// CloseRequest 是 EventCloseRequest 的负载。
+// Request 是 EventCloseRequest 的负载。
 //
 // 只带 id 不带标题：前端本来就有完整的项目和任务列表，翻译成中文名
 // 是它的事，后端不用为了拼一句话去反查配置。
-type CloseRequest struct {
-	Tasks []CloseTask `json:"tasks"`
+type Request struct {
+	Tasks []Task `json:"tasks"`
 }
 
-// CloseTask 是一个正在运行的任务的定位信息。
-type CloseTask struct {
+// Task 是一个正在运行的任务的定位信息。
+type Task struct {
 	ProjectID string `json:"projectId"`
 	TaskID    string `json:"taskId"`
 }
@@ -35,11 +37,19 @@ type CloseTask struct {
 // webview 已经没了或还没加载完，再拦着关闭只会让用户没法退出应用。
 const closeAckTimeout = 5 * time.Second
 
-// quitGuard 在窗口关闭前拦一道：有任务在跑就先问用户。
+// Cancelable 是窗口关闭事件里这里用到的最小接口。
+//
+// 只取 Cancel：guard 不关心事件来自哪种窗口，测试也就不用伪造 Wails 的
+// 事件对象。Wails 的 *application.WindowEvent 天然满足它。
+type Cancelable interface {
+	Cancel()
+}
+
+// Guard 在窗口关闭前拦一道：有任务在跑就先问用户。
 //
 // 不用系统对话框：界面里所有确认都走 ConfirmDialog，主题字体一致；
 // 系统弹窗画在窗口之外，风格和按钮都跟界面对不上。
-type quitGuard struct {
+type Guard struct {
 	// running 返回当前在跑的任务快照。抽成函数是为了单测能塞假数据，
 	// 不用真的去起一个进程。
 	running func() []process.Runtime
@@ -57,8 +67,9 @@ type quitGuard struct {
 	ack       chan struct{}
 }
 
-func newQuitGuard(running func() []process.Runtime, quit func(), emit func(string, any)) *quitGuard {
-	return &quitGuard{
+// New 构造一个关闭守卫。
+func New(running func() []process.Runtime, quit func(), emit func(string, any)) *Guard {
+	return &Guard{
 		running:    running,
 		quit:       quit,
 		emit:       emit,
@@ -66,12 +77,12 @@ func newQuitGuard(running func() []process.Runtime, quit func(), emit func(strin
 	}
 }
 
-// HandleWindowClosing 是 WindowClosing 钩子。
+// HandleClosing 是 WindowClosing 钩子的主体。
 //
 // 钩子跑在 Wails 的窗口事件 goroutine 里（窗口事件先进 channel 再分发），
 // 所以这里只负责拦下关闭，等回执和弹框都丢给 prompt 那个 goroutine，
 // 不占住事件分发。
-func (g *quitGuard) HandleWindowClosing(e *application.WindowEvent) {
+func (g *Guard) HandleClosing(e Cancelable) {
 	g.mu.Lock()
 	switch {
 	case g.confirmed:
@@ -103,12 +114,12 @@ func (g *quitGuard) HandleWindowClosing(e *application.WindowEvent) {
 }
 
 // prompt 把确认请求推给前端，并等它回执。
-func (g *quitGuard) prompt(running []process.Runtime, ack chan struct{}) {
-	tasks := make([]CloseTask, 0, len(running))
+func (g *Guard) prompt(running []process.Runtime, ack chan struct{}) {
+	tasks := make([]Task, 0, len(running))
 	for _, r := range running {
-		tasks = append(tasks, CloseTask{ProjectID: r.ProjectID, TaskID: r.TaskID})
+		tasks = append(tasks, Task{ProjectID: r.ProjectID, TaskID: r.TaskID})
 	}
-	g.emit(EventCloseRequest, CloseRequest{Tasks: tasks})
+	g.emit(EventCloseRequest, Request{Tasks: tasks})
 
 	select {
 	case <-ack:
@@ -121,7 +132,7 @@ func (g *quitGuard) prompt(running []process.Runtime, ack chan struct{}) {
 }
 
 // AcknowledgeClose 由前端在收到 EventCloseRequest 后立刻调用，表示确认框已经弹出来了。
-func (g *quitGuard) AcknowledgeClose() {
+func (g *Guard) AcknowledgeClose() {
 	g.mu.Lock()
 	ack := g.ack
 	g.ack = nil
@@ -133,7 +144,7 @@ func (g *quitGuard) AcknowledgeClose() {
 }
 
 // ConfirmQuit 用户确认「停止并退出」。
-func (g *quitGuard) ConfirmQuit() {
+func (g *Guard) ConfirmQuit() {
 	g.mu.Lock()
 	if g.confirmed {
 		g.mu.Unlock()
@@ -155,7 +166,7 @@ func (g *quitGuard) ConfirmQuit() {
 }
 
 // CancelQuit 用户选择继续使用：窗口留着，下次再点关闭会重新提示。
-func (g *quitGuard) CancelQuit() {
+func (g *Guard) CancelQuit() {
 	g.mu.Lock()
 	g.prompting = false
 	ack := g.ack
@@ -167,32 +178,4 @@ func (g *quitGuard) CancelQuit() {
 	if ack != nil {
 		close(ack)
 	}
-}
-
-// AppService 把「关闭应用」这一侧的交互暴露给前端。
-//
-// 单独一个服务而不是塞进 ProcessService：它管的是应用生命周期，
-// 和启动/停止任务不是一回事。
-type AppService struct {
-	guard *quitGuard
-}
-
-// NewAppService 构造应用生命周期服务。
-func NewAppService(g *quitGuard) *AppService {
-	return &AppService{guard: g}
-}
-
-// AcknowledgeClose 表示界面已经收到关闭提示并弹出了确认框。
-func (s *AppService) AcknowledgeClose() {
-	s.guard.AcknowledgeClose()
-}
-
-// ConfirmQuit 用户确认停止所有任务并退出。
-func (s *AppService) ConfirmQuit() {
-	s.guard.ConfirmQuit()
-}
-
-// CancelQuit 用户取消了这次关闭。
-func (s *AppService) CancelQuit() {
-	s.guard.CancelQuit()
 }

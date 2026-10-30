@@ -1,4 +1,4 @@
-package main
+package quitguard
 
 import (
 	"sync"
@@ -6,16 +6,32 @@ import (
 	"time"
 
 	"bootpane/internal/process"
-
-	"github.com/wailsapp/wails/v3/pkg/application"
 )
+
+// fakeEvent 顶替 Wails 的窗口事件：guard 只用到 Cancel，测试只看有没有被拦。
+type fakeEvent struct {
+	mu        sync.Mutex
+	cancelled bool
+}
+
+func (e *fakeEvent) Cancel() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.cancelled = true
+}
+
+func (e *fakeEvent) cancelledNow() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.cancelled
+}
 
 // fakeEnv 记录 guard 对外产生的副作用，替代真实的进程管理器和 app.Quit。
 type fakeEnv struct {
 	mu       sync.Mutex
 	runs     []process.Runtime
 	quits    int
-	requests []CloseRequest
+	requests []Request
 	events   []string
 }
 
@@ -41,7 +57,7 @@ func (e *fakeEnv) emit(event string, data any) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.events = append(e.events, event)
-	if req, ok := data.(CloseRequest); ok {
+	if req, ok := data.(Request); ok {
 		e.requests = append(e.requests, req)
 	}
 }
@@ -52,11 +68,11 @@ func (e *fakeEnv) counts() (quits, events int) {
 	return e.quits, len(e.events)
 }
 
-func (e *fakeEnv) requestAt(i int) CloseRequest {
+func (e *fakeEnv) requestAt(i int) Request {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if i >= len(e.requests) {
-		return CloseRequest{}
+		return Request{}
 	}
 	return e.requests[i]
 }
@@ -77,10 +93,10 @@ func (e *fakeEnv) waitEvent(t *testing.T, want int) {
 	t.Fatalf("等了 1s 也没等到第 %d 个事件", want)
 }
 
-func newTestGuard(t *testing.T) (*quitGuard, *fakeEnv) {
+func newTestGuard(t *testing.T) (*Guard, *fakeEnv) {
 	t.Helper()
 	env := &fakeEnv{}
-	g := newQuitGuard(env.running, env.quit, env.emit)
+	g := New(env.running, env.quit, env.emit)
 	// 单测里把兜底超时调到几十毫秒，不用真等 5 秒。
 	g.ackTimeout = 20 * time.Millisecond
 	return g, env
@@ -94,10 +110,10 @@ func runningTask(projectID, taskID string) process.Runtime {
 func TestQuitGuardLetsCloseThroughWhenIdle(t *testing.T) {
 	g, env := newTestGuard(t)
 
-	event := application.NewWindowEvent()
-	g.HandleWindowClosing(event)
+	event := &fakeEvent{}
+	g.HandleClosing(event)
 
-	if event.IsCancelled() {
+	if event.cancelledNow() {
 		t.Fatal("没有任务在跑时不应该拦下关闭")
 	}
 	if quits, events := env.counts(); quits != 0 || events != 0 {
@@ -110,10 +126,10 @@ func TestQuitGuardPromptsWhenTasksRunning(t *testing.T) {
 	g, env := newTestGuard(t)
 	env.setRunning(runningTask("p1", "web"), runningTask("p1", "api"))
 
-	event := application.NewWindowEvent()
-	g.HandleWindowClosing(event)
+	event := &fakeEvent{}
+	g.HandleClosing(event)
 
-	if !event.IsCancelled() {
+	if !event.cancelledNow() {
 		t.Fatal("有任务在跑时必须先拦下关闭")
 	}
 
@@ -136,7 +152,7 @@ func TestQuitGuardFallsBackWhenFrontendSilent(t *testing.T) {
 	g, env := newTestGuard(t)
 	env.setRunning(runningTask("p1", "web"))
 
-	g.HandleWindowClosing(application.NewWindowEvent())
+	g.HandleClosing(&fakeEvent{})
 	env.waitEvent(t, 1)
 
 	deadline := time.Now().Add(time.Second)
@@ -154,7 +170,7 @@ func TestQuitGuardConfirmQuitsOnce(t *testing.T) {
 	g, env := newTestGuard(t)
 	env.setRunning(runningTask("p1", "web"))
 
-	g.HandleWindowClosing(application.NewWindowEvent())
+	g.HandleClosing(&fakeEvent{})
 	env.waitEvent(t, 1)
 
 	g.ConfirmQuit()
@@ -165,9 +181,9 @@ func TestQuitGuardConfirmQuitsOnce(t *testing.T) {
 	}
 
 	// 退出流程里窗口还会再关一次，这时候必须放行。
-	event := application.NewWindowEvent()
-	g.HandleWindowClosing(event)
-	if event.IsCancelled() {
+	event := &fakeEvent{}
+	g.HandleClosing(event)
+	if event.cancelledNow() {
 		t.Fatal("确认退出后不应该再拦截关闭")
 	}
 }
@@ -177,9 +193,9 @@ func TestQuitGuardCancelAllowsPromptingAgain(t *testing.T) {
 	g, env := newTestGuard(t)
 	env.setRunning(runningTask("p1", "web"))
 
-	first := application.NewWindowEvent()
-	g.HandleWindowClosing(first)
-	if !first.IsCancelled() {
+	first := &fakeEvent{}
+	g.HandleClosing(first)
+	if !first.cancelledNow() {
 		t.Fatal("第一次关闭应该被拦下")
 	}
 	env.waitEvent(t, 1)
@@ -192,9 +208,9 @@ func TestQuitGuardCancelAllowsPromptingAgain(t *testing.T) {
 		t.Fatalf("用户取消后不该退出（quits=%d）", quits)
 	}
 
-	second := application.NewWindowEvent()
-	g.HandleWindowClosing(second)
-	if !second.IsCancelled() {
+	second := &fakeEvent{}
+	g.HandleClosing(second)
+	if !second.cancelledNow() {
 		t.Fatal("再次关闭应该重新拦下")
 	}
 	env.waitEvent(t, 2)
@@ -205,12 +221,12 @@ func TestQuitGuardDoesNotStackPrompts(t *testing.T) {
 	g, env := newTestGuard(t)
 	env.setRunning(runningTask("p1", "web"))
 
-	g.HandleWindowClosing(application.NewWindowEvent())
+	g.HandleClosing(&fakeEvent{})
 	env.waitEvent(t, 1)
 
-	second := application.NewWindowEvent()
-	g.HandleWindowClosing(second)
-	if !second.IsCancelled() {
+	second := &fakeEvent{}
+	g.HandleClosing(second)
+	if !second.cancelledNow() {
 		t.Fatal("确认框开着时，重复关闭仍然要被拦下")
 	}
 

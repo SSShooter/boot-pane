@@ -1,4 +1,4 @@
-package main
+package host
 
 import (
 	"reflect"
@@ -53,10 +53,10 @@ func TestResolveOpenWithSubstitutesPlaceholder(t *testing.T) {
 
 // 拼错的命令要在保存设置时就报错，而不是等到点「打开目录」。
 func TestLookupOpenWithRejectsUnknownCommand(t *testing.T) {
-	if _, err := lookupOpenWith("definitely-not-installed-cmd"); err == nil {
+	if _, err := LookupOpenWith("definitely-not-installed-cmd"); err == nil {
 		t.Fatal("不存在的命令应返回错误")
 	}
-	if _, err := lookupOpenWith("   "); err == nil {
+	if _, err := LookupOpenWith("   "); err == nil {
 		t.Fatal("空命令应返回错误")
 	}
 }

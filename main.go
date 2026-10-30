@@ -9,6 +9,7 @@ import (
 
 	"bootpane/internal/config"
 	"bootpane/internal/process"
+	"bootpane/internal/quitguard"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -46,11 +47,12 @@ func main() {
 
 	// 关窗口时如果有任务在跑，先让前端问一句：直接退会把 dev server 全掐了，
 	// 用户可能只是手滑点了叉。
-	guard := newQuitGuard(procMgr.Running, func() {
+	guard := quitguard.New(procMgr.Running, func() {
 		if a := appPtr.Load(); a != nil {
 			a.Quit()
 		}
 	}, emit)
+	appService := NewAppService(guard)
 
 	// 日志独立窗口的服务要在 New 之前注册，但它创建窗口要用的 app 只能 New 之后
 	// 才有，所以先构造、再 Attach。
@@ -62,7 +64,7 @@ func main() {
 		Services: []application.Service{
 			application.NewService(NewConfigService(store)),
 			application.NewService(NewProcessService(procMgr, store)),
-			application.NewService(NewAppService(guard)),
+			application.NewService(appService),
 			application.NewService(logWindow),
 		},
 		Assets: application.AssetOptions{
@@ -98,7 +100,7 @@ func main() {
 
 	// 拦在窗口真正关掉之前。取消掉这次关闭，让前端弹确认框，
 	// 用户确认后再走 app.Quit，OnShutdown 才有机会清理进程树。
-	window.RegisterHook(events.Common.WindowClosing, guard.HandleWindowClosing)
+	window.RegisterHook(events.Common.WindowClosing, appService.windowClosing)
 
 	if err := app.Run(); err != nil {
 		log.Fatal(err)

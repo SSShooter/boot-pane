@@ -1,4 +1,4 @@
-package main
+package host
 
 import (
 	"fmt"
@@ -8,11 +8,11 @@ import (
 	"bootpane/internal/config"
 )
 
-// openExternalURL 用系统默认浏览器打开网页地址。
+// OpenExternalURL 用系统默认浏览器打开网页地址。
 //
 // 只放行 http/https：配置来自 .bootpane.json 或大模型产出，不能让它有机会
 // 通过 file:// 或自定义协议在机器上拉起任意程序。
-func openExternalURL(raw string) error {
+func OpenExternalURL(raw string) error {
 	if !config.IsHTTPURL(raw) {
 		return fmt.Errorf("页面地址无效: %q（只支持 http/https）", raw)
 	}

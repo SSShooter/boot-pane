@@ -1,4 +1,4 @@
-package main
+package host
 
 import "testing"
 
@@ -11,7 +11,7 @@ func TestOpenExternalURLRejectsNonHTTP(t *testing.T) {
 		"javascript:alert(1)",
 		"http://",
 	} {
-		if err := openExternalURL(raw); err == nil {
+		if err := OpenExternalURL(raw); err == nil {
 			t.Errorf("%q 应该被拒绝", raw)
 		}
 	}

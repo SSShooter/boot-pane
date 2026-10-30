@@ -1,4 +1,8 @@
-package main
+// Package host 封装和操作系统打交道的动作：用外部程序打开目录、调浏览器开网页。
+//
+// 这些函数都是纯粹的「把进程拉起来」，不依赖 Wails，也不持有应用状态，
+// 所以单独成包——测试里不用起应用就能验。
+package host
 
 import (
 	"errors"
@@ -49,11 +53,11 @@ func splitCommandLine(s string) []string {
 	return out
 }
 
-// lookupOpenWith 定位命令里的可执行文件。
+// LookupOpenWith 定位命令里的可执行文件。
 //
 // 保存设置时就会调一次：命令拼错应该在保存那一刻就报出来，而不是等用户去点
 // 「打开目录」才失败——那时错误离输入框已经很远，用户很难联想到是设置的问题。
-func lookupOpenWith(command string) (string, error) {
+func LookupOpenWith(command string) (string, error) {
 	tokens := splitCommandLine(command)
 	if len(tokens) == 0 {
 		return "", errors.New("打开方式不能为空")
@@ -67,7 +71,7 @@ func lookupOpenWith(command string) (string, error) {
 
 // resolveOpenWith 把保存的命令行展开成「可执行文件 + 参数」。
 func resolveOpenWith(command, path string) (bin string, args []string, err error) {
-	bin, err = lookupOpenWith(command)
+	bin, err = LookupOpenWith(command)
 	if err != nil {
 		return "", nil, err
 	}
@@ -86,10 +90,10 @@ func resolveOpenWith(command, path string) (bin string, args []string, err error
 	return bin, args, nil
 }
 
-// launchOpenWith 用配置的命令打开项目目录。
+// LaunchOpenWith 用配置的命令打开项目目录。
 //
 // 只负责把进程拉起来，不等它退出：编辑器是长驻进程，等它等于把界面卡住。
-func launchOpenWith(command, path string) error {
+func LaunchOpenWith(command, path string) error {
 	bin, args, err := resolveOpenWith(command, path)
 	if err != nil {
 		return err
@@ -113,4 +117,18 @@ func isScriptFile(bin string) bool {
 		return true
 	}
 	return false
+}
+
+// Reveal 调用系统文件管理器定位到指定路径。
+func Reveal(path string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", path)
+	case "darwin":
+		cmd = exec.Command("open", path)
+	default:
+		cmd = exec.Command("xdg-open", path)
+	}
+	return cmd.Start()
 }
