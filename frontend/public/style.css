@@ -34,6 +34,9 @@
   --radius: 10px;
   --radius-sm: 7px;
   --rail-w: 272px;
+  /* 滚动条宽度：既给 ::-webkit-scrollbar 用，也用来给正文区扣掉常驻的
+     滚动条槽。两处必须同源，否则阅读线的补偿会差几个像素。 */
+  --sb-w: 10px;
   --titlebar-h: 36px;
   /* macOS 顶部留白高度。必须和 main.go 里 Mac.InvisibleTitleBarHeight
      保持一致：顶部这一段是系统隐形拖拽区，点不到也放不了内容。 */
@@ -90,8 +93,8 @@ input {
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--sb-w);
+  height: var(--sb-w);
 }
 
 ::-webkit-scrollbar-thumb {
@@ -108,6 +111,25 @@ input {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/*
+ * 滚动容器常驻一条滚动条槽。
+ *
+ * 默认只有内容溢出时才占 10px：任务卡片在这些容器里是 auto-fill 网格，
+ * 冻结/解冻一条日志、筛选一次项目，宽度一变就整列重排，看起来像在抖。
+ * 常驻之后宽度恒定，只是永远空着 10px（那里本来也是给滚动条留的）。
+ *
+ * 下拉菜单不在此列：它的选项在打开后不会再变，不会抖；倒是常驻的空槽
+ * 会让 hover 高亮块比菜单边框短一截，看得出歪。
+ */
+.rail-list,
+.panel-body,
+.log-body,
+.dialog-body,
+.prompt-box,
+.json-editor {
+  scrollbar-gutter: stable;
 }
 
 /* ---------- 整体布局 ---------- */
@@ -489,7 +511,12 @@ input {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 var(--panel-pad) 40px;
-  padding-right: max(var(--panel-pad), calc(100% - var(--panel-col) + var(--panel-pad)));
+  /* 右侧留白要再扣掉常驻的滚动条槽：槽会把正文区挤窄 10px，不补的话
+     卡片右缘和头部的按钮、下边框对不齐那条 912px 的线。 */
+  padding-right: max(
+    var(--panel-pad),
+    calc(100% - var(--panel-col) + var(--panel-pad) - var(--sb-w))
+  );
 }
 
 .panel-title {
