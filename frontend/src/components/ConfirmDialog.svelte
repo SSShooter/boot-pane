@@ -1,5 +1,6 @@
 <script lang="ts">
   import { app } from "../lib/state.svelte";
+  import { t } from "../lib/i18n/index.svelte";
 
   const req = $derived(app.confirmRequest);
 
@@ -72,13 +73,13 @@
 
       <footer class="dialog-foot">
         <button class="btn" bind:this={cancelBtn} onclick={() => app.resolveConfirm(false)}>
-          {req.cancelLabel ?? "取消"}
+          {req.cancelLabel ?? t("confirm.cancel")}
         </button>
         <button
           class="btn {req.danger ? 'btn-danger-solid' : 'btn-primary'}"
           onclick={() => app.resolveConfirm(true)}
         >
-          {req.confirmLabel ?? "确定"}
+          {req.confirmLabel ?? t("confirm.ok")}
         </button>
       </footer>
     </div>

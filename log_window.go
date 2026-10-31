@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 
+	"bootpane/internal/i18n"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 )
@@ -77,12 +79,12 @@ func (s *LogWindowService) appRef() *application.App {
 func (s *LogWindowService) Open(state string) error {
 	state = strings.TrimSpace(state)
 	if state == "" {
-		return errors.New("日志面板状态为空")
+		return errors.New(i18n.T("logWindow.stateEmpty"))
 	}
 
 	app := s.appRef()
 	if app == nil {
-		return errors.New("应用尚未初始化")
+		return errors.New(i18n.T("logWindow.appNotReady"))
 	}
 
 	if win, ok := app.Window.GetByName(logWindowName); ok {
@@ -92,12 +94,12 @@ func (s *LogWindowService) Open(state string) error {
 	}
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             logWindowName,
-		Title:            "运行日志 · BootPane",
-		Width:            880,
-		Height:           520,
-		MinWidth:         480,
-		MinHeight:        220,
+		Name:      logWindowName,
+		Title:     i18n.T("logWindow.title"),
+		Width:     880,
+		Height:    520,
+		MinWidth:  480,
+		MinHeight: 220,
 		// 和主窗口同色，也和日志正文的 --surface-sunk 接近：这个窗口一开就是日志。
 		BackgroundColour: application.NewRGB(10, 10, 12),
 		URL:              logWindowURL(state),

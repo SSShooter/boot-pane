@@ -3,8 +3,21 @@ package config
 import (
 	"strings"
 
+	"bootpane/internal/i18n"
 	"bootpane/internal/pty"
 )
+
+// promptBuilders 把语言映射到 prompt 生成函数。
+//
+// prompt 会直接显示在「生成配置」弹窗里，用户还要把它复制到模型那边用。
+// 界面是英文却给一段中文 prompt，等于让用户每次先自己翻一遍，所以它跟着
+// 界面语言走。新增语言时在这里注册，同时补一份 prompt_<lang>.go。
+var promptBuilders = map[i18n.Lang]func(ResolvedProject, string) string{
+	i18n.ZH: promptZH,
+	i18n.EN: promptEN,
+	i18n.PT: promptPT,
+	i18n.RU: promptRU,
+}
 
 // BuildPrompt 生成一段可以直接贴给任意大模型的 prompt，让它产出符合 schema 的启动配置。
 //
@@ -22,115 +35,17 @@ import (
 //     所以引导模型优先用日志标记（log），端口只在真实读到时才写；
 //     waitPort 本身已做 IPv4/IPv6 双栈探测，只绑 [::1] 的服务（如 WXT）不会误判。
 //   - shell 名字从 pty 拿，业务层不判断平台。
+//
+// 各语言版本的内容必须保持一致：只翻措辞，不加也不减规则。
 func BuildPrompt(p ResolvedProject) string {
-	shell := pty.ShellDescription()
-
-	lines := []string{
-		"我要给下面这个项目配置 BootPane 的启动按钮。BootPane 是项目启动器，一个按钮对应一条长期运行的启动命令。",
-		"",
-		"项目根目录：",
-		"    " + p.Path,
-		"",
-		"请在这个目录下读文件（package.json、go.mod、docker-compose.yml、Makefile、vite.config.*、",
-		".env*、各种 lockfile），命令必须来自你真正读到的内容，不要凭经验猜。",
-		"",
-		"【找什么】",
-		"找出这个项目里需要长期运行的进程入口：dev server、watch、mock 服务、后端 API。每个入口一个 task。",
-		"不要列一次性任务——install、build、lint、test、格式化这类跑完就退出的，不属于启动器。",
-		"",
-		"【命令怎么填】",
-		"- 包管理器看 lockfile 决定：pnpm-lock.yaml 用 pnpm，yarn.lock 用 yarn，",
-		"  package-lock.json 用 npm，bun.lockb 用 bun。不要默认用 npm。",
-		"- command 只能填 package.json 的 scripts 里已存在的脚本名（如 pnpm dev:h5），",
-		"  或仓库里真实存在的可执行文件。读不到就不要写。",
-		"- cwd 是命令执行的子目录，相对项目根目录，必须是真实存在的目录；",
-		"  不要以 / 开头，不要用 .. 往上跳。在根目录执行就留空字符串。",
-		"- 要改端口、传参数，用 env 字段，不要塞进 command。",
-		"",
-		"【端口从哪找】",
-		"依次看：vite.config.* / webpack.config.* 的 server.port、package.json scripts 里的 --port、",
-		".env* 里的 PORT 或 VITE_PORT、docker-compose.yml 的 ports、",
-		"后端的 application.yml / config.toml / appsettings.json。",
-		"找不到就不要写端口。",
-		"",
-		"【就绪判定 waitFor】",
-		"BootPane 靠它判断「启动完成」，三选一，优先级从高到低：",
-		"1. 启动输出里有稳定出现、且只在就绪之后才出现的原文（首选，最不容易误判）：",
-		`   { "type": "log", "log": "ready in", "timeout": 120 }`,
-		"   log 是大小写敏感的原文子串匹配，不是正则，不要改写大小写。",
-		"   典型可靠的标记：vite 的 ready in、WXT 的 Started dev server、",
-		"   Spring 的 Started ... in、Go 服务的 listening on。照抄启动输出原文，不要概括。",
-		"2. 端口号确认无误（从配置文件或启动输出里真实读到）：",
-		`   { "type": "port", "port": 5173, "timeout": 60 }`,
-		"   端口探测同时拨 IPv4 和 IPv6，只监听 [::1] 的服务也能正确判定。",
-		"3. 两者都拿不准：整个省略 waitFor 字段。",
-		"timeout 单位是秒。宁可降级用 log 或省略，也不要写一个没验证过的端口——",
-		"猜错会让任务被标成失败，而进程其实还在跑。",
-		"",
-		"【页面地址 openUrl】",
-		"如果这条任务是能在浏览器里直接看的页面（网页端 / h5 / 管理后台），把访问地址写进 openUrl，",
-		"卡片上会出现一个「打开页面」按钮。地址按真实端口拼，例如 http://localhost:5173。",
-		"https、反向代理后的域名、带路径的地址（如 /admin）推导不出来，读到就显式写。",
-		"后端 API、mock 服务、只产出构建产物的任务不要填 openUrl；拿不准端口就整个省略。",
-		"",
-		"【运行环境】",
-		"命令由 " + shell + "执行，这个 shell 有几个硬约束：",
-		"- 不要写 PORT=5173 pnpm dev 这种前缀赋值，cmd 不认，改用 env 字段",
-		"- 不要用单引号，不要用 & 把命令放到后台",
-		"- 命令里尽量别带双引号，会被 shell 吞掉一层",
-		"- 一个 task 一条命令，不要用 && 或 ; 把多个服务串起来",
-		"",
-		"【硬性要求】",
-		"1. id 只用小写字母、数字、短横线，项目内唯一。",
-		"2. label 用中文，是按钮上显示的名字。",
-		"3. group 用来归类按钮，比如 前端 / 后端 / 小程序。",
-		"4. 不同 task 不要用同一个端口。",
-		"5. task 数量控制在 1~5 个，只保留真正需要常驻的入口。",
-		`6. 如果这个项目里找不到任何需要长期运行的入口，tasks 输出空数组 []，`,
-		"   不要为了凑数编命令。",
-		"",
-		"【项目信息】",
-		"输出的顶层还有一个 project 对象，用来描述项目本身：",
-		`- name：项目名。优先用 package.json 的 name 或 README 标题，其次用目录名，不要自己起名。`,
-		"- description：一句话说清这个项目是什么、有哪几个常驻入口，40 字以内。",
-		"  从 README 开头几段或 package.json 的 description 里提炼，不要照抄一大段。",
-		"  读不到任何可用信息就整个省略 description 字段，不要编。",
-		"",
-		"【输出】",
-		"只输出一个 json 代码块，不要任何解释文字，不要注释。结构如下：",
-		"",
-		"{",
-		`  "version": 1,`,
-		`  "project": {`,
-		`    "name": "my-shop",`,
-		`    "description": "uni-app 商城，前端 h5 + 后端 Go API，两个常驻进程"`,
-		"  },",
-		`  "tasks": [`,
-		"    {",
-		`      "id": "web",`,
-		`      "label": "启动网页端",`,
-		`      "group": "前端",`,
-		`      "command": "pnpm dev:h5",`,
-		`      "cwd": "",`,
-		`      "env": { "PORT": "5173" },`,
-		`      "waitFor": { "type": "log", "log": "ready in", "timeout": 120 },`,
-		`      "openUrl": "http://localhost:5173"`,
-		"    },",
-		"    {",
-		`      "id": "api",`,
-		`      "label": "启动后端",`,
-		`      "group": "后端",`,
-		`      "command": "go run ./cmd/api",`,
-		`      "cwd": "server",`,
-		`      "waitFor": { "type": "log", "log": "listening on", "timeout": 60 }`,
-		"    }",
-		"  ]",
-		"}",
-		"",
-		"字段一览：id / label / group / command / cwd / env / waitFor / openUrl，",
-		"其中 group、cwd、env、waitFor、openUrl 都可以省略。",
-		"project 也可以整个省略：name 省略时用项目目录名兜底，description 省略就不显示。",
+	build, ok := promptBuilders[i18n.Current()]
+	if !ok {
+		build = promptEN
 	}
+	return build(p, pty.ShellDescription())
+}
 
+// joinPrompt 统一给 prompt 收尾，省得各语言版本各写一次换行。
+func joinPrompt(lines []string) string {
 	return strings.Join(lines, "\n") + "\n"
 }

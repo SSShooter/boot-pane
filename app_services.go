@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"bootpane/internal/config"
 	"bootpane/internal/editors"
 	"bootpane/internal/host"
+	"bootpane/internal/i18n"
 	"bootpane/internal/portinfo"
 	"bootpane/internal/process"
 	"bootpane/internal/prockill"
@@ -99,11 +101,11 @@ func (c *ConfigService) OpenTaskPage(id, taskID string) error {
 		}
 		page := t.PageURL()
 		if page == "" {
-			return fmt.Errorf("任务 %q 没有可打开的页面", t.Label)
+			return fmt.Errorf("%s", i18n.T("svc.taskNoPage", t.Label))
 		}
 		return host.OpenExternalURL(page)
 	}
-	return fmt.Errorf("任务 %q 不存在", taskID)
+	return fmt.Errorf("%s", i18n.T("svc.taskNotFound", taskID))
 }
 
 // ConfigFilePath 返回注册表文件路径，界面上用于展示。
@@ -137,6 +139,23 @@ func (c *ConfigService) SetAutoOpenLogOnStart(enabled bool) error {
 	return c.store.SetAutoOpenLogOnStart(enabled)
 }
 
+// SetLanguage 切换界面语言，并立即作用到后端文案。
+//
+// 先换运行时语言再落盘：后端生成的消息（校验问题、启动失败原因）立刻就是
+// 新语言，界面不用等下一次重启；写盘失败则回滚，否则这次只有进程内生效，
+// 下次启动又会变回去，用户会觉得设置没存住。
+func (c *ConfigService) SetLanguage(lang string) error {
+	prev := i18n.Current()
+	if !i18n.Set(lang) {
+		return errors.New(i18n.T("store.langUnsupported", lang))
+	}
+	if err := c.store.SetLanguage(lang); err != nil {
+		i18n.Set(string(prev))
+		return err
+	}
+	return nil
+}
+
 // BuildConfigPrompt 生成一段可以贴给任意大模型的 prompt，用来产出启动配置。
 func (c *ConfigService) BuildConfigPrompt(id string) (string, error) {
 	p, err := c.store.Get(id)
@@ -156,7 +175,7 @@ func (c *ConfigService) ImportTasks(id, raw string) (config.ImportResult, error)
 		return config.ImportResult{}, err
 	}
 	if p.UseRepoConfig {
-		return config.ImportResult{Error: "该项目当前使用项目内配置，请先切回全局再导入"}, nil
+		return config.ImportResult{Error: i18n.T("svc.importRepoMode")}, nil
 	}
 
 	pf, err := config.ParseProjectFile(raw)
@@ -167,7 +186,7 @@ func (c *ConfigService) ImportTasks(id, raw string) (config.ImportResult, error)
 	// 导入会把 JSON 里的项目名和描述写进注册表：prompt 已经要求模型输出这两项，
 	// 模型给了却不用，界面上看到的还是旧名字、旧描述。空值视为模型没给，保留原值；
 	// 标签不在输出约定里，不动。
-	return c.applyConfig(p, pf, false, "导入的配置有错误，已取消写入")
+	return c.applyConfig(p, pf, false, i18n.T("svc.importFailed"))
 }
 
 // ConfigJSON 返回当前生效配置的完整 JSON 文本，供界面直接编辑。
@@ -194,7 +213,7 @@ func (c *ConfigService) SaveConfigJSON(id, raw string) (config.ImportResult, err
 		return config.ImportResult{Error: err.Error()}, nil
 	}
 
-	return c.applyConfig(p, pf, true, "配置有错误，未保存")
+	return c.applyConfig(p, pf, true, i18n.T("svc.saveFailed"))
 }
 
 // applyConfig 是「导入」和「编辑保存」共用的校验 + 落盘逻辑。
@@ -293,7 +312,7 @@ func (p *ProcessService) RestartTask(projectID, taskID string) RestartResult {
 		}
 	}
 	if task == nil {
-		return RestartResult{Message: fmt.Sprintf("任务 %q 不存在", taskID)}
+		return RestartResult{Message: i18n.T("svc.taskNotFound", taskID)}
 	}
 
 	// 只有配了 waitFor.port 的任务才可能被判定成「外部运行中」，
@@ -303,7 +322,7 @@ func (p *ProcessService) RestartTask(projectID, taskID string) RestartResult {
 		port = task.WaitFor.Port
 	}
 	if port <= 0 {
-		return RestartResult{Message: "该任务没有配置端口，无法判断外部实例"}
+		return RestartResult{Message: i18n.T("restart.noPort")}
 	}
 
 	var killed []string
@@ -311,7 +330,7 @@ func (p *ProcessService) RestartTask(projectID, taskID string) RestartResult {
 		victims, killErr := prockill.Kill(listener.PID)
 		if killErr != nil {
 			return RestartResult{
-				Message: fmt.Sprintf("终止 %s 失败：%v", describeListener(listener), killErr),
+				Message: i18n.T("restart.killFailed", describeListener(listener), killErr),
 			}
 		}
 		for _, v := range victims {
@@ -320,7 +339,7 @@ func (p *ProcessService) RestartTask(projectID, taskID string) RestartResult {
 		if err := waitPortRelease(port, portReleaseTimeout); err != nil {
 			return RestartResult{
 				Killed:  killed,
-				Message: fmt.Sprintf("已终止 %d 个进程，但端口 %d 仍被占用", len(killed), port),
+				Message: i18n.T("restart.portStuck", len(killed), port),
 			}
 		}
 	}
@@ -330,9 +349,9 @@ func (p *ProcessService) RestartTask(projectID, taskID string) RestartResult {
 	}
 
 	if len(killed) == 0 {
-		return RestartResult{OK: true, Message: "已启动"}
+		return RestartResult{OK: true, Message: i18n.T("restart.started")}
 	}
-	return RestartResult{OK: true, Killed: killed, Message: "已终止外部实例并重新启动"}
+	return RestartResult{OK: true, Killed: killed, Message: i18n.T("restart.done")}
 }
 
 // waitPortRelease 轮询到端口不再能建立连接。
@@ -348,21 +367,21 @@ func waitPortRelease(port int, timeout time.Duration) error {
 		_ = conn.Close()
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("端口 %d 在 %v 内没有释放", port, timeout)
+	return errors.New(i18n.T("restart.portTimeout", port, timeout))
 }
 
 func describeListener(l portinfo.Listener) string {
 	if l.Process != "" {
-		return fmt.Sprintf("%s（PID %d）", l.Process, l.PID)
+		return i18n.T("process.listener", l.Process, l.PID)
 	}
-	return fmt.Sprintf("PID %d", l.PID)
+	return i18n.T("process.pidOnly", l.PID)
 }
 
 func describeKilled(k prockill.Killed) string {
 	if k.Name != "" {
-		return fmt.Sprintf("%s (PID %d)", k.Name, k.PID)
+		return i18n.T("process.listener", k.Name, k.PID)
 	}
-	return fmt.Sprintf("PID %d", k.PID)
+	return i18n.T("process.pidOnly", k.PID)
 }
 
 // StartTask 启动项目下的某个任务。
@@ -376,7 +395,7 @@ func (p *ProcessService) StartTask(projectID, taskID string) error {
 			return p.mgr.Start(projectID, t, proj.Path)
 		}
 	}
-	return fmt.Errorf("任务 %q 不存在", taskID)
+	return fmt.Errorf("%s", i18n.T("svc.taskNotFound", taskID))
 }
 
 // StopTask 停止某个任务及其整棵进程树。

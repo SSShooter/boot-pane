@@ -52,6 +52,13 @@ type Settings struct {
 	// 也可能是自己写的脚本，枚举永远列不全。命令里可以写 {path} 占位符，
 	// 不写时项目路径自动追加到末尾——多数编辑器 CLI 正是这个用法。
 	OpenWith string `json:"openWith,omitempty"`
+
+	// Language 是界面语言，取值见 internal/i18n 的短码（zh / en / pt / ru）。
+	//
+	// 空字符串表示「还没选过」：首次启动时前端按系统语言挑一个并回写，
+	// 之后界面文案和 Go 侧生成的错误信息都跟着它走。不认识的值按未设置处理，
+	// 免得手改配置写错一个字符串就让应用卡在某个不存在的语言上。
+	Language string `json:"language,omitempty"`
 }
 
 // StarRef 指向一个被星标的任务。

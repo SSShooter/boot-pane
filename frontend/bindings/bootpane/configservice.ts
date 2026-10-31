@@ -143,6 +143,17 @@ export function SetAutoOpenLogOnStart(enabled: boolean): $CancellablePromise<voi
 }
 
 /**
+ * SetLanguage 切换界面语言，并立即作用到后端文案。
+ * 
+ * 先换运行时语言再落盘：后端生成的消息（校验问题、启动失败原因）立刻就是
+ * 新语言，界面不用等下一次重启；写盘失败则回滚，否则这次只有进程内生效，
+ * 下次启动又会变回去，用户会觉得设置没存住。
+ */
+export function SetLanguage(lang: string): $CancellablePromise<void> {
+    return $Call.ByID(794432391, lang);
+}
+
+/**
  * SetOpenWith 设置「打开目录」使用的命令，传空字符串表示回到系统文件管理器。
  * 
  * 保存前先确认命令能找到：拼错的命令等到点按钮才报错，用户很难把错误

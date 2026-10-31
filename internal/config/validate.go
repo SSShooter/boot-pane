@@ -1,11 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"bootpane/internal/i18n"
 )
 
 // Validate 校验合并后的项目配置，返回所有发现的问题。
@@ -22,11 +23,11 @@ func Validate(rp *ResolvedProject) []Issue {
 	ids := make(map[string]Task, len(rp.Tasks))
 	for _, t := range rp.Tasks {
 		if t.ID == "" {
-			issues = append(issues, Issue{Level: "error", Message: fmt.Sprintf("任务 %q 缺少 id", t.Label)})
+			issues = append(issues, Issue{Level: "error", Message: i18n.T("validate.idMissing", t.Label)})
 			continue
 		}
 		if _, dup := ids[t.ID]; dup {
-			issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: "任务 id 重复"})
+			issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.idDuplicate")})
 			continue
 		}
 		ids[t.ID] = t
@@ -39,40 +40,40 @@ func Validate(rp *ResolvedProject) []Issue {
 			continue
 		}
 		if strings.TrimSpace(t.Command) == "" {
-			issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: "未配置启动命令"})
+			issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.commandMissing")})
 		}
 		if t.Cwd != "" {
 			abs := filepath.Join(rp.Path, t.Cwd)
 			if fi, err := os.Stat(abs); err != nil || !fi.IsDir() {
-				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: fmt.Sprintf("工作目录不存在: %s", t.Cwd)})
+				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.cwdMissing", t.Cwd)})
 			}
 		}
 		// openUrl 只影响卡片上那个按钮，写错不拦启动，但要让用户知道
 		// 为什么按钮没出现。
 		if raw := strings.TrimSpace(t.OpenURL); raw != "" && !IsHTTPURL(raw) {
-			issues = append(issues, Issue{Level: "warn", TaskID: t.ID, Message: fmt.Sprintf("openUrl 不是合法的 http(s) 地址: %s", raw)})
+			issues = append(issues, Issue{Level: "warn", TaskID: t.ID, Message: i18n.T("validate.badOpenURL", raw)})
 		}
 		for _, dep := range t.DependsOn {
 			if _, ok := ids[dep]; !ok {
-				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: fmt.Sprintf("依赖的任务 %q 不存在", dep)})
+				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.depMissing", dep)})
 			}
 		}
 		if wf := t.WaitFor; wf != nil {
 			switch wf.Type {
 			case WaitPort:
 				if wf.Port <= 0 || wf.Port > 65535 {
-					issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: "waitFor.port 不是合法端口"})
+					issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.portInvalid")})
 				} else if other, dup := ports[wf.Port]; dup {
-					issues = append(issues, Issue{Level: "warn", TaskID: t.ID, Message: fmt.Sprintf("端口 %d 与任务 %q 重复", wf.Port, other)})
+					issues = append(issues, Issue{Level: "warn", TaskID: t.ID, Message: i18n.T("validate.portDuplicate", wf.Port, other)})
 				} else {
 					ports[wf.Port] = t.ID
 				}
 			case WaitLog:
 				if strings.TrimSpace(wf.Log) == "" {
-					issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: "waitFor.type 为 log 但未填写关键字"})
+					issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.logKeywordMissing")})
 				}
 			default:
-				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: fmt.Sprintf("未知的 waitFor.type: %q", wf.Type)})
+				issues = append(issues, Issue{Level: "error", TaskID: t.ID, Message: i18n.T("validate.waitTypeUnknown", wf.Type)})
 			}
 		}
 	}
@@ -84,7 +85,7 @@ func Validate(rp *ResolvedProject) []Issue {
 		}
 		for _, id := range pl.Tasks {
 			if _, ok := ids[id]; !ok {
-				issues = append(issues, Issue{Level: "error", Message: fmt.Sprintf("编排 %q 引用了不存在的任务 %q", label, id)})
+				issues = append(issues, Issue{Level: "error", Message: i18n.T("validate.pipelineRefMissing", label, id)})
 			}
 		}
 	}
@@ -117,7 +118,7 @@ func detectCycles(tasks map[string]Task) []Issue {
 				issues = append(issues, Issue{
 					Level:   "error",
 					TaskID:  id,
-					Message: "依赖成环: " + strings.Join(path, " → "),
+					Message: i18n.T("validate.depCycle", strings.Join(path, " → ")),
 				})
 				return true
 			case white:

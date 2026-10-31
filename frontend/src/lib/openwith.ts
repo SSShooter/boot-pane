@@ -34,10 +34,13 @@ export const OPEN_WITH_CUSTOM = "__custom__";
  * 只取第一个参数（去掉引号和 .exe/.cmd 后缀），所以
  * `"C:\...\Code.exe" -n` 会显示成 Code。认不出预设时就显示这个程序名，
  * 总比统一显示成「编辑器」更有信息量。
+ *
+ * 命令为空时返回空串：这时按钮上写「系统文件管理器」还是别的说法由界面
+ * 按当前语言决定，这里不做翻译。
  */
 export function openWithLabel(command: string): string {
   const trimmed = command.trim();
-  if (!trimmed) return "系统文件管理器";
+  if (!trimmed) return "";
 
   const preset = OPEN_WITH_PRESETS.find((p) => p.value === trimmed);
   if (preset) return preset.label;

@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { app } from "../lib/state.svelte";
   import { formatBytes, formatPercent } from "../lib/format";
+  import { t } from "../lib/i18n/index.svelte";
 
   /**
    * 是不是跑在独立窗口里。
@@ -76,7 +77,7 @@
   const tabs = $derived(
     app.logTabs.map((tab) => {
       const project = app.projects.find((p) => p.id === tab.projectId);
-      const task = (project?.tasks ?? []).find((t) => t.id === tab.taskId);
+      const task = (project?.tasks ?? []).find((x) => x.id === tab.taskId);
       return {
         key: tab.key,
         label: task?.label ?? tab.taskId,
@@ -115,11 +116,29 @@
   /** 端口有人在听，但不是 bootpane 起的进程。 */
   const foreignPort = $derived(!!target?.portInfo?.listening && !live);
 
+  /** 头部状态文字，措辞和任务卡片保持一致。 */
+  const stateLabel = $derived.by(() => {
+    switch (runState) {
+      case "running":
+        return t("task.stateRunning");
+      case "starting":
+        return t("task.stateStarting");
+      case "failed":
+        return t("log.stateFailed");
+      case "stopped":
+        return foreignPort ? t("task.stateExited") : t("task.stateStopped");
+      default:
+        return foreignPort ? t("task.stateNotStarted") : t("task.stateIdle");
+    }
+  });
+
   const portHint = $derived.by(() => {
     const info = target?.portInfo;
     if (!info?.listening) return "";
-    const who = info.process ? `${info.process}（PID ${info.pid}）` : `PID ${info.pid}`;
-    return `端口 ${info.port} 正被 ${who} 占用，不是 BootPane 启动的。`;
+    const who = info.process
+      ? t("task.who", { process: info.process, pid: info.pid })
+      : t("task.pidOnly", { pid: info.pid });
+    return t("log.portHint", { port: info.port, who });
   });
 
   // 日志变化后，只要用户还在底部就跟着滚到底。
@@ -162,7 +181,7 @@
     class:is-window={detached}
     class:is-resizing={resizing}
     style:height={detached ? undefined : `${drawerHeight}px`}
-    aria-label="运行日志"
+    aria-label={t("log.aria")}
   >
     {#if !detached}
       <!-- 拖拽调高把手：绝对定位叠在抽屉顶边上，不占布局空间。
@@ -172,8 +191,8 @@
         class:is-active={resizing}
         role="separator"
         aria-orientation="horizontal"
-        aria-label="拖拽调整日志面板高度"
-        title="拖拽调整高度，双击恢复默认"
+        aria-label={t("log.resizeAria")}
+        title={t("log.resizeTitle")}
         onpointerdown={startResize}
         onpointermove={onResizeMove}
         onpointerup={endResize}
@@ -182,7 +201,7 @@
       ></div>
     {/if}
     <div class="log-tabs-row">
-      <div class="log-tabs" role="tablist" aria-label="日志标签" bind:this={tabsEl}>
+      <div class="log-tabs" role="tablist" aria-label={t("log.tabsAria")} bind:this={tabsEl}>
         {#each tabs as tab (tab.key)}
           <div class="log-tab" class:is-active={tab.key === app.activeLogKey}>
             <button
@@ -198,13 +217,13 @@
               {/if}
               <span class="log-tab-name">{tab.label}</span>
               {#if tab.unread}
-                <span class="log-tab-new" title="有新输出"></span>
+                <span class="log-tab-new" title={t("log.newOutput")}></span>
               {/if}
             </button>
             <button
               class="log-tab-close"
-              aria-label={`关闭 ${tab.label} 的日志标签`}
-              title="关闭"
+              aria-label={t("log.closeAria", { label: tab.label })}
+              title={t("log.close")}
               onclick={() => app.closeLogTab(tab.key)}
             >
               <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
@@ -219,8 +238,8 @@
         {#if detached}
           <button
             class="log-tab-btn"
-            title="把日志面板收回主窗口"
-            aria-label="内嵌回主窗口"
+            title={t("log.embedTitle")}
+            aria-label={t("log.embedAria")}
             onclick={() => app.embedLog()}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -230,8 +249,8 @@
         {:else}
           <button
             class="log-tab-btn"
-            title="把整个日志面板弹到独立窗口"
-            aria-label="弹窗"
+            title={t("log.detachTitle")}
+            aria-label={t("log.detachAria")}
             onclick={() => app.detachLog()}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -240,8 +259,8 @@
           </button>
           <button
             class="log-tab-btn"
-            title="收起日志面板"
-            aria-label="收起"
+            title={t("log.collapseTitle")}
+            aria-label={t("log.collapseAria")}
             onclick={() => app.closeLog()}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -255,26 +274,29 @@
     <header class="log-head">
       <span class="state {runState}">
         <span class="dot"></span>
-        {#if runState === "running"}运行中{:else if runState === "starting"}启动中{:else if runState === "failed"}已失败{:else if runState === "stopped"}{foreignPort ? "已退出" : "已停止"}{:else}{foreignPort ? "未启动" : "未运行"}{/if}
+        {stateLabel}
       </span>
 
       <span class="log-title" title={target.command}>{target.label}</span>
 
       {#if foreignPort && target.portInfo}
         <span class="port-flag" title={portHint}>
-          {target.portInfo.process || "外部进程"} 占用 {target.portInfo.port}
+          {t("log.occupied", {
+            who: target.portInfo.process || t("log.foreignProcess"),
+            port: target.portInfo.port,
+          })}
         </span>
       {:else if live && target.runtime && target.runtime.memoryBytes > 0}
-        <span class="usage" title="整棵进程树合计">
+        <span class="usage" title={t("log.usageTitle")}>
           <span class="usage-cpu">CPU {formatPercent(target.runtime.cpuPercent)}</span>
           <span class="usage-mem">{formatBytes(target.runtime.memoryBytes)}</span>
-          <span class="usage-proc">{target.runtime.processes} 进程</span>
+          <span class="usage-proc">{t("log.processes", { count: target.runtime.processes })}</span>
         </span>
       {/if}
 
       <span class="foot-gap"></span>
 
-      <button class="btn btn-ghost btn-mini" onclick={() => app.clearLog()}>清空</button>
+      <button class="btn btn-ghost btn-mini" onclick={() => app.clearLog()}>{t("log.clear")}</button>
     </header>
 
     <div class="log-body" bind:this={bodyEl} onscroll={onScroll}>
@@ -282,7 +304,7 @@
         <pre>{#each runs as run}{#if run.cls || run.style}<span class={run.cls} style={run.style}>{run.text}</span>{:else}{run.text}{/if}{/each}</pre>
       {:else}
         <div class="log-empty">
-          {live ? "等待输出…" : "还没有日志。点启动按钮后这里会显示实时输出。"}
+          {live ? t("log.waiting") : t("log.empty")}
         </div>
       {/if}
     </div>

@@ -25,6 +25,7 @@ import type {
   StatsPayload,
 } from "./events";
 import { MAX_LOG_CHARS } from "./format";
+import { currentLocale, normalizeLocale, setLocale, t } from "./i18n/index.svelte";
 import { openWithLabel } from "./openwith";
 import { countRuns, createAnsiState, mergeRuns, parseAnsiChunk, trimRuns } from "./ansi";
 import type { AnsiState, LogRun } from "./ansi";
@@ -214,7 +215,7 @@ class AppState {
    * 只有「这台机器上的习惯」放这里（星标、自动打开日志、用哪个编辑器开目录），
    * 项目级的配置永远走 workspace.json 里的项目条目或仓库内 .bootpane.json。
    */
-  settings = $state({ autoOpenLogOnStart: false, openWith: "" });
+  settings = $state({ autoOpenLogOnStart: false, openWith: "", language: "" });
 
   /**
    * 本机扫到的编辑器，设置页的「打开方式」只列这些。
@@ -235,7 +236,7 @@ class AppState {
    */
   openWithLabel = $derived.by(() => {
     const command = this.openWith;
-    if (!command) return "系统文件管理器";
+    if (!command) return t("settings.systemFileManager");
     return this.editors.find((e) => e.command === command)?.name ?? openWithLabel(command);
   });
 
@@ -311,6 +312,10 @@ class AppState {
   async load(): Promise<void> {
     this.loading = true;
     try {
+      // 先定语言再拉项目：校验问题、配置错误这些文案都是 Go 侧按当前语言
+      // 生成好的，顺序反过来会让首屏出现一段另一种语言的内容。
+      await this.loadSettings();
+
       const list = await api.listProjects();
       this.projects = list ?? [];
       // 伪视图（星标 / 设置）不是真实项目，不能被「选中项不存在」的兜底逻辑
@@ -322,7 +327,7 @@ class AppState {
       // 扫完之后列表自己会刷新，没必要为了它拖慢首屏。
       void this.detectEditors();
 
-      await Promise.all([this.refreshRuntimes(), this.refreshPorts(), this.loadSettings()]);
+      await Promise.all([this.refreshRuntimes(), this.refreshPorts()]);
     } catch (e) {
       this.notify(describeError(e), true);
     } finally {
@@ -424,15 +429,15 @@ class AppState {
       .filter((name) => name !== "");
 
     const ok = await this.confirm({
-      title: "还有任务在运行",
+      title: t("state.closeTitle"),
       body:
         names.length > 0
-          ? `关闭会一并停止以下 ${names.length} 个任务：`
-          : `关闭会一并停止 ${tasks.length} 个正在运行的任务。`,
+          ? t("state.closeBodySome", { count: names.length })
+          : t("state.closeBodyAll", { count: tasks.length }),
       items: names,
-      detail: "进程会被强制终止，没来得及落盘的构建产物或写入可能不完整。",
-      confirmLabel: "停止并退出",
-      cancelLabel: "取消",
+      detail: t("state.closeDetail"),
+      confirmLabel: t("state.closeConfirm"),
+      cancelLabel: t("state.cancel"),
       danger: true,
     });
 
@@ -459,9 +464,58 @@ class AppState {
       this.settings = {
         autoOpenLogOnStart: !!st?.autoOpenLogOnStart,
         openWith: st?.openWith ?? "",
+        language: st?.language ?? "",
       };
+      await this.syncLocale(st?.language ?? "");
     } catch {
       // 读不到一条偏好不值得弹错误，用默认值继续。
+    }
+  }
+
+  /**
+   * 让界面语言和后端语言对齐。
+   *
+   * 存过就直接用；没存过（首次启动，或手改配置写坏了一个值）按系统语言挑
+   * 一个并回写，下次启动就不用再猜。回写失败不提示：它只影响「下次还猜一次」，
+   * 用户当下看不到任何异常。
+   */
+  private async syncLocale(saved: string): Promise<void> {
+    if (normalizeLocale(saved)) {
+      setLocale(saved);
+      return;
+    }
+
+    const guess = currentLocale();
+    this.settings = { ...this.settings, language: guess };
+    try {
+      await api.setLanguage(guess);
+    } catch {
+      // 存不住就下次再猜，不打扰用户。
+    }
+  }
+
+  /**
+   * 切换界面语言。
+   *
+   * 先本地生效再回写：文案不等 IPC 往返就该变。回写失败要回滚，否则会出现
+   * 「界面是英文、报错还是中文」这种割裂状态。
+   */
+  async setLanguage(lang: string): Promise<void> {
+    const next = normalizeLocale(lang);
+    if (!next) return;
+
+    const prev = currentLocale();
+    const prevSaved = this.settings.language;
+    if (next === prev && prevSaved === next) return;
+
+    setLocale(next);
+    this.settings = { ...this.settings, language: next };
+    try {
+      await api.setLanguage(next);
+    } catch (e) {
+      setLocale(prev);
+      this.settings = { ...this.settings, language: prevSaved };
+      this.notify(describeError(e), true);
     }
   }
 
@@ -676,7 +730,7 @@ class AppState {
   async startStarred(): Promise<void> {
     const targets = this.starredTasks.filter(({ project, task }) => !this.isBusy(project.id, task.id));
     if (targets.length === 0) {
-      this.notify("星标任务都已经在运行");
+      this.notify(t("state.starredAllRunning"));
       return;
     }
 
@@ -688,7 +742,9 @@ class AppState {
 
     const ok = targets.length - failed;
     this.notify(
-      failed > 0 ? `已启动 ${ok} 个，${failed} 个失败` : `已依次启动 ${ok} 个星标任务`,
+      failed > 0
+        ? t("state.starredStartedPartial", { ok, failed })
+        : t("state.starredStarted", { count: ok }),
       failed > 0,
     );
   }
@@ -697,7 +753,7 @@ class AppState {
   async stopStarred(): Promise<void> {
     const targets = this.starredTasks.filter(({ project, task }) => this.isBusy(project.id, task.id));
     if (targets.length === 0) {
-      this.notify("没有正在运行的星标任务");
+      this.notify(t("state.starredNoneRunning"));
       return;
     }
 
@@ -705,7 +761,7 @@ class AppState {
       await this.stopTask(project.id, task.id);
     }
     await this.refreshPorts();
-    this.notify(`已停止 ${targets.length} 个星标任务`);
+    this.notify(t("state.starredStopped", { count: targets.length }));
   }
 
   /**
@@ -955,7 +1011,7 @@ class AppState {
       const added = await api.addProject(path);
       await this.load();
       this.selectedId = added.id;
-      this.notify(`已添加 ${added.name}`);
+      this.notify(t("state.projectAdded", { name: added.name }));
     } catch (e) {
       this.notify(describeError(e), true);
     }
@@ -967,7 +1023,7 @@ class AppState {
       if (this.selectedId === id) this.selectedId = "";
       this.dropProjectLogs(id);
       await this.load();
-      this.notify("已从列表移除（磁盘文件未受影响）");
+      this.notify(t("state.projectRemoved"));
     } catch (e) {
       this.notify(describeError(e), true);
     }
@@ -1035,7 +1091,7 @@ class AppState {
     try {
       await api.setUseRepoConfig(id, enabled);
       await this.load();
-      this.notify(enabled ? "已切换为项目内配置" : "已切换为全局配置");
+      this.notify(enabled ? t("state.switchedRepo") : t("state.switchedGlobal"));
     } catch (e) {
       this.notify(describeError(e), true);
     }
@@ -1108,17 +1164,17 @@ class AppState {
     this.restarting[key] = true;
     // 上一轮的日志会被新实例的输出取代，先清掉。
     this.resetLog(key);
-    this.notify("正在终止外部实例…");
+    this.notify(t("state.restartKilling"));
 
     try {
       const res = await api.restartTask(projectId, taskId);
       if (res?.ok) {
         const n = res.killed?.length ?? 0;
-        this.notify(n > 0 ? `已终止 ${n} 个进程，正在重启` : "已重启");
+        this.notify(n > 0 ? t("state.restartKilled", { count: n }) : t("state.restartStarted"));
         // 重启也是一次「新实例启动」，和启动走同一条抢占规则。
         if (this.settings.autoOpenLogOnStart) void this.openLog(projectId, taskId);
       } else {
-        this.notify(res?.message || "重启失败", true);
+        this.notify(res?.message || t("state.restartFailed"), true);
       }
     } catch (e) {
       this.notify(describeError(e), true);

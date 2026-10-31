@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bootpane/internal/config"
+	"bootpane/internal/i18n"
 )
 
 // eventRecorder 收集推给前端的事件，供断言使用。
@@ -156,6 +157,11 @@ func TestManagerStopKillsTree(t *testing.T) {
 
 // TestManagerStartFailsOnMissingDir 验证工作目录不存在时不会真的去起进程。
 func TestManagerStartFailsOnMissingDir(t *testing.T) {
+	// 错误文案跟着应用语言变，这里断言的是「报的是目录问题」，固定成中文。
+	orig := i18n.Current()
+	i18n.Set(string(i18n.ZH))
+	t.Cleanup(func() { i18n.Set(string(orig)) })
+
 	m := NewManager(nil)
 	defer m.Shutdown()
 

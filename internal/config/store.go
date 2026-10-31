@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+
+	"bootpane/internal/i18n"
 )
 
 const (
@@ -20,8 +22,16 @@ const (
 	RepoConfigName = ".bootpane.json"
 )
 
+// notFoundError 是「项目不存在」的单例错误。
+//
+// 文案在 Error() 里现取而不是创建时定死：这是包级单例，用户切换语言之后
+// 同一个错误对象也得能给出对应语言的文字。
+type notFoundError struct{}
+
+func (notFoundError) Error() string { return i18n.T("store.projectNotFound") }
+
 // ErrProjectNotFound 表示注册表里没有这个项目。
-var ErrProjectNotFound = errors.New("项目不存在")
+var ErrProjectNotFound error = notFoundError{}
 
 // Store 管理全局注册表，并负责把它和仓库内的 .bootpane.json 合并成前端视图。
 type Store struct {
@@ -35,7 +45,7 @@ type Store struct {
 func NewStore() (*Store, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
-		return nil, fmt.Errorf("无法定位用户配置目录: %w", err)
+		return nil, fmt.Errorf("%s", i18n.T("store.configDir", err))
 	}
 	return NewStoreAt(filepath.Join(base, appDirName))
 }
@@ -46,7 +56,7 @@ func NewStore() (*Store, error) {
 // 将来要支持自定义配置目录时也是从这里接。
 func NewStoreAt(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("创建配置目录失败: %w", err)
+		return nil, fmt.Errorf("%s", i18n.T("store.mkdir", err))
 	}
 	s := &Store{dir: dir}
 	if err := s.load(); err != nil {
@@ -68,11 +78,11 @@ func (s *Store) load() error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("读取 %s 失败: %w", configFileName, err)
+		return fmt.Errorf("%s", i18n.T("store.readFile", configFileName, err))
 	}
 	var ws Workspace
 	if err := json.Unmarshal(data, &ws); err != nil {
-		return fmt.Errorf("%s 格式错误: %w", configFileName, err)
+		return fmt.Errorf("%s", i18n.T("store.parseWorkspace", configFileName, err))
 	}
 	if ws.Projects == nil {
 		ws.Projects = []Project{}
@@ -126,12 +136,12 @@ func (s *Store) Get(id string) (ResolvedProject, error) {
 func (s *Store) Add(path string) (ResolvedProject, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return ResolvedProject{}, fmt.Errorf("路径无效: %w", err)
+		return ResolvedProject{}, fmt.Errorf("%s", i18n.T("store.badPath", err))
 	}
 	abs = filepath.Clean(abs)
 	fi, err := os.Stat(abs)
 	if err != nil || !fi.IsDir() {
-		return ResolvedProject{}, fmt.Errorf("目录不存在: %s", abs)
+		return ResolvedProject{}, fmt.Errorf("%s", i18n.T("store.dirMissing", abs))
 	}
 
 	s.mu.Lock()
@@ -171,7 +181,7 @@ func (s *Store) Remove(id string) error {
 // 状态没变化时连盘都不写。
 func (s *Store) SetStar(projectID, taskID string, starred bool) error {
 	if projectID == "" || taskID == "" {
-		return errors.New("项目和任务 id 不能为空")
+		return errors.New(i18n.T("store.emptyIds"))
 	}
 
 	s.mu.Lock()
@@ -274,7 +284,7 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 	if fi, err := os.Stat(p.Path); err == nil && fi.IsDir() {
 		rp.Exists = true
 	} else {
-		rp.Issues = append(rp.Issues, Issue{Level: "error", Message: "项目目录不存在或不可访问"})
+		rp.Issues = append(rp.Issues, Issue{Level: "error", Message: i18n.T("store.dirUnreadable")})
 	}
 
 	// 不管开没开项目内配置，都探一下仓库里有没有 .bootpane.json，
@@ -286,11 +296,11 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 		case err == nil:
 			rp.HasRepoCfg = true
 			if e := json.Unmarshal(raw, &pf); e != nil {
-				rp.ConfigErr = fmt.Sprintf("%s 解析失败: %v", RepoConfigName, e)
+				rp.ConfigErr = i18n.T("store.repoParse", RepoConfigName, e)
 				pf = ProjectFile{}
 			}
 		case !errors.Is(err, os.ErrNotExist):
-			rp.ConfigErr = fmt.Sprintf("读取 %s 失败: %v", RepoConfigName, err)
+			rp.ConfigErr = i18n.T("store.readFile", RepoConfigName, err)
 		}
 	}
 
@@ -301,7 +311,7 @@ func (s *Store) resolve(p Project, stars []StarRef) ResolvedProject {
 		if rp.Exists && !rp.HasRepoCfg {
 			rp.Issues = append(rp.Issues, Issue{
 				Level:   "error",
-				Message: "已切换为项目内配置，但仓库里没有 " + RepoConfigName,
+				Message: i18n.T("store.repoMissing", RepoConfigName),
 			})
 		}
 		if rp.ConfigErr != "" {
@@ -398,6 +408,37 @@ func (s *Store) SetOpenWith(command string) error {
 	return nil
 }
 
+// SetLanguage 保存界面语言。
+//
+// 只存短码："zh-CN" 这类系统标记由 i18n.Normalize 折成 "zh"，写盘前就统一，
+// 免得同一个语言在配置里出现好几种写法。空串表示清掉选择，下一次启动
+// 会重新按系统语言挑。不认识的语言直接拒绝——静默接受等于把界面卡死在
+// 一个没有文案的语言上。
+func (s *Store) SetLanguage(lang string) error {
+	lang = strings.TrimSpace(lang)
+	if lang != "" {
+		norm := i18n.Normalize(lang)
+		if norm == "" {
+			return errors.New(i18n.T("store.langUnsupported", lang))
+		}
+		lang = string(norm)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	prev := s.ws.Settings.Language
+	if prev == lang {
+		return nil
+	}
+	s.ws.Settings.Language = lang
+	if err := s.save(); err != nil {
+		s.ws.Settings.Language = prev
+		return err
+	}
+	return nil
+}
+
 // SetUseRepoConfig 切换某个项目的配置来源。
 func (s *Store) SetUseRepoConfig(id string, enabled bool) error {
 	s.mu.Lock()
@@ -472,7 +513,7 @@ func (s *Store) ConfigSnapshot(id string) (string, error) {
 				Project: Meta{Name: p.Name, Description: p.Description, Tags: p.Tags},
 			})
 		default:
-			return "", fmt.Errorf("读取 %s 失败: %w", RepoConfigName, err)
+			return "", fmt.Errorf("%s", i18n.T("store.readFile", RepoConfigName, err))
 		}
 	}
 
@@ -576,11 +617,11 @@ func writeRepoFile(dir string, pf ProjectFile) error {
 	path := filepath.Join(dir, RepoConfigName)
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
-		return fmt.Errorf("写入 %s 失败: %w", RepoConfigName, err)
+		return fmt.Errorf("%s", i18n.T("store.repoWrite", RepoConfigName, err))
 	}
 	if err := os.Rename(tmp, path); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("写入 %s 失败: %w", RepoConfigName, err)
+		return fmt.Errorf("%s", i18n.T("store.repoWrite", RepoConfigName, err))
 	}
 	return nil
 }

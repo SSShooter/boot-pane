@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"bootpane/internal/i18n"
 )
 
 // openWithPlaceholder 是命令里代表项目目录的占位符。
@@ -60,11 +62,11 @@ func splitCommandLine(s string) []string {
 func LookupOpenWith(command string) (string, error) {
 	tokens := splitCommandLine(command)
 	if len(tokens) == 0 {
-		return "", errors.New("打开方式不能为空")
+		return "", errors.New(i18n.T("host.openWithEmpty"))
 	}
 	bin, err := exec.LookPath(tokens[0])
 	if err != nil {
-		return "", fmt.Errorf("找不到命令 %q，请确认它已安装并在 PATH 里", tokens[0])
+		return "", fmt.Errorf("%s", i18n.T("host.commandNotFound", tokens[0]))
 	}
 	return bin, nil
 }

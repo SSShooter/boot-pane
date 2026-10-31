@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { Window } from "@wailsio/runtime";
+  import { t } from "../lib/i18n/index.svelte";
 
   // 只在无边框窗口里渲染，App.svelte 用 customChrome 控制。
   // 左格和侧栏同宽同底色，品牌只出现在这里；右边整段是拖拽区，最右是窗口
@@ -50,15 +51,15 @@
   <div class="titlebar-drag"></div>
 
   <div class="win-ctrls">
-    <button class="win-btn" title="最小化" aria-label="最小化" onclick={() => void Window.Minimise()}>
+    <button class="win-btn" title={t("titlebar.minimise")} aria-label={t("titlebar.minimise")} onclick={() => void Window.Minimise()}>
       <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
         <path d="M1 5.5h8" stroke="currentColor" stroke-width="1.1" />
       </svg>
     </button>
     <button
       class="win-btn"
-      title={maximised ? "向下还原" : "最大化"}
-      aria-label={maximised ? "向下还原" : "最大化"}
+      title={maximised ? t("titlebar.restore") : t("titlebar.maximise")}
+      aria-label={maximised ? t("titlebar.restore") : t("titlebar.maximise")}
       onclick={() => void toggleMaximise()}
     >
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.1" aria-hidden="true">
@@ -70,7 +71,7 @@
         {/if}
       </svg>
     </button>
-    <button class="win-btn win-close" title="关闭" aria-label="关闭" onclick={() => void Window.Close()}>
+    <button class="win-btn win-close" title={t("titlebar.close")} aria-label={t("titlebar.close")} onclick={() => void Window.Close()}>
       <!-- 走的是和系统叉号一样的关窗流程：WindowClosing 钩子照样会拦下来问一句，
            有任务在跑时不会直接退掉。 -->
       <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">

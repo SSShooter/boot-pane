@@ -562,7 +562,7 @@ func CreateProcess(spec ProcSpec) (ProcessInformation, error) {
 		uintptr(unsafe.Pointer(&si)),
 		uintptr(unsafe.Pointer(&pi)),
 	)
-	
+
 	if r1 == 0 {
 		return pi, lastError(callErr)
 	}

@@ -6,6 +6,7 @@
   } from "../../bindings/bootpane/internal/config/models";
   import { api, isPreview } from "../lib/api";
   import { app } from "../lib/state.svelte";
+  import { t } from "../lib/i18n/index.svelte";
 
   let { project, onclose }: { project: ResolvedProject; onclose: () => void } = $props();
 
@@ -62,11 +63,11 @@
       const res = await api.importTasks(project.id, pasted);
       issues = res.issues ?? [];
       if (!res.ok) {
-        errorMsg = res.error || "导入失败";
+        errorMsg = res.error || t("gen.importFailed");
         return;
       }
       await app.load();
-      app.notify(`已导入 ${res.imported} 个启动项`);
+      app.notify(t("gen.imported", { count: res.imported }));
       onclose();
     } catch (e) {
       errorMsg = describe(e);
@@ -86,10 +87,10 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="gen-title">
     <header class="dialog-head">
       <div>
-        <h2 id="gen-title">生成启动配置</h2>
-        <p class="dialog-sub">用你自己的大模型生成配置，粘回来导入</p>
+        <h2 id="gen-title">{t("gen.title")}</h2>
+        <p class="dialog-sub">{t("gen.sub")}</p>
       </div>
-      <button class="icon-btn" aria-label="关闭" onclick={onclose}>
+      <button class="icon-btn" aria-label={t("gen.close")} onclick={onclose}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
         </svg>
@@ -100,18 +101,17 @@
       <section class="step">
         <div class="step-head">
           <span class="step-num">1</span>
-          <span class="step-title">复制这段内容</span>
+          <span class="step-title">{t("gen.step1")}</span>
           <button class="btn btn-primary btn-mini" onclick={copyPrompt} disabled={promptLoading}>
-            {copied ? "已复制" : "复制"}
+            {copied ? t("gen.copied") : t("gen.copy")}
           </button>
         </div>
         <p class="step-hint">
-          到 <code>{project.path}</code> 目录下打开 AI 工具再粘贴。让它在项目里读文件，
-          生成的命令才是真实存在的。
+          {t("gen.step1HintA")} <code>{project.path}</code>{t("gen.step1HintB")}
         </p>
         <div class="prompt-box">
           {#if promptLoading}
-            <div class="prompt-loading">正在生成…</div>
+            <div class="prompt-loading">{t("gen.loading")}</div>
           {:else}
             <pre>{prompt}</pre>
           {/if}
@@ -121,7 +121,7 @@
       <section class="step">
         <div class="step-head">
           <span class="step-num">2</span>
-          <span class="step-title">把返回的 JSON 粘回来</span>
+          <span class="step-title">{t("gen.step2")}</span>
         </div>
         <textarea
           class="paste-area"
@@ -148,11 +148,11 @@
 
     <footer class="dialog-foot">
       {#if isPreview}
-        <span class="dialog-note">浏览器预览模式下不能真正导入</span>
+        <span class="dialog-note">{t("gen.previewNote")}</span>
       {/if}
-      <button class="btn" onclick={onclose}>取消</button>
+      <button class="btn" onclick={onclose}>{t("gen.cancel")}</button>
       <button class="btn btn-primary" disabled={!pasted.trim() || importing} onclick={doImport}>
-        {importing ? "导入中…" : "导入"}
+        {importing ? t("gen.importing") : t("gen.import")}
       </button>
     </footer>
   </div>

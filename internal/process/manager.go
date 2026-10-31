@@ -11,7 +11,6 @@ package process
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -22,6 +21,7 @@ import (
 	"time"
 
 	"bootpane/internal/config"
+	"bootpane/internal/i18n"
 	"bootpane/internal/proctree"
 	"bootpane/internal/pty"
 )
@@ -57,7 +57,14 @@ const (
 )
 
 // ErrNotImplemented 保留给尚未接入的平台实现。
-var ErrNotImplemented = errors.New("进程管理尚未接入")
+//
+// 和 config.ErrProjectNotFound 一样用自定义类型：文案在 Error() 里现取，
+// 切换语言后同一个错误对象也能给对应语言的文字。
+var ErrNotImplemented error = notImplementedError{}
+
+type notImplementedError struct{}
+
+func (notImplementedError) Error() string { return i18n.T("run.notImplemented") }
 
 // Runtime 是一个任务当前的运行快照。
 type Runtime struct {
@@ -159,7 +166,7 @@ func (m *Manager) Start(projectID string, task config.Task, root string) error {
 	if old, ok := m.runs[key]; ok {
 		if task.SingletonEnabled() && (old.State == StateStarting || old.State == StateRunning) {
 			m.mu.Unlock()
-			return fmt.Errorf("「%s」已经在运行中", task.Label)
+			return fmt.Errorf("%s", i18n.T("run.alreadyRunning", task.Label))
 		}
 	}
 	r := &taskRun{
@@ -183,13 +190,13 @@ func (m *Manager) Start(projectID string, task config.Task, root string) error {
 		dir = filepath.Join(root, task.Cwd)
 	}
 	if fi, statErr := os.Stat(dir); statErr != nil || !fi.IsDir() {
-		m.fail(key, fmt.Sprintf("工作目录不存在：%s", dir))
+		m.fail(key, i18n.T("run.cwdMissing", dir))
 		return nil
 	}
 
 	grp, err := proctree.New()
 	if err != nil {
-		m.fail(key, "创建进程树失败："+err.Error())
+		m.fail(key, i18n.T("run.treeFail", err))
 		return nil
 	}
 
@@ -203,7 +210,7 @@ func (m *Manager) Start(projectID string, task config.Task, root string) error {
 	})
 	if err != nil {
 		_ = grp.Close()
-		m.fail(key, "启动失败："+err.Error())
+		m.fail(key, i18n.T("run.spawnFail", err))
 		return nil
 	}
 
@@ -417,14 +424,14 @@ func (m *Manager) awaitReady(key string, r *taskRun, wf *config.WaitFor) {
 		select {
 		case <-r.readyCh:
 		case <-ctx.Done():
-			err = fmt.Errorf("等待日志 %q 超时", wf.Log)
+			err = fmt.Errorf("%s", i18n.T("run.waitLogTimeout", wf.Log))
 		}
 	case "":
 		// 配了 waitFor 但没写 type，当作没配。
 		m.setState(key, StateRunning, true)
 		return
 	default:
-		err = fmt.Errorf("未知的 waitFor 类型：%s", wf.Type)
+		err = fmt.Errorf("%s", i18n.T("run.waitTypeUnknown", wf.Type))
 	}
 
 	if err != nil {
@@ -460,7 +467,7 @@ func (m *Manager) waitExit(key string, r *taskRun, sess pty.Session, grp proctre
 			if waitErr != nil {
 				r.LastError = waitErr.Error()
 			} else {
-				r.LastError = fmt.Sprintf("进程启动后立即退出（退出码 %d）", code)
+				r.LastError = i18n.T("run.exitedImmediately", code)
 			}
 		}
 	default:

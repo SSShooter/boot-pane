@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 
 	"bootpane/internal/config"
+	"bootpane/internal/i18n"
 	"bootpane/internal/process"
 	"bootpane/internal/quitguard"
 
@@ -22,6 +23,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("初始化配置失败: %v", err)
 	}
+
+	// 语言要先于任何文案取用就位：后面创建的应用描述、日志窗口标题都靠它。
+	// 存的是空串（还没选过）时保持默认，前端拉到偏好后会按系统语言回写。
+	i18n.Set(store.Settings().Language)
 
 	// 事件出口用原子指针延迟绑定：进程管理器要先进 Services，而 app 得等
 	// application.New 才存在，中间这段时间采样协程可能已经跑起来了。
@@ -51,7 +56,7 @@ func main() {
 
 	app := application.New(application.Options{
 		Name:        "BootPane",
-		Description: "项目启动器",
+		Description: i18n.T("app.description"),
 		Services: []application.Service{
 			application.NewService(NewConfigService(store)),
 			application.NewService(NewProcessService(procMgr, store)),
@@ -71,9 +76,9 @@ func main() {
 	logWindow.attach(app)
 
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "BootPane",
-		Width:            1180,
-		Height:           760,
+		Title:  "BootPane",
+		Width:  1180,
+		Height: 760,
 		// 和 style.css 的 --bg 保持一致：首帧渲染前窗口是这块色，对不上就会闪一下白。
 		BackgroundColour: application.NewRGB(13, 13, 15),
 		URL:              "/",

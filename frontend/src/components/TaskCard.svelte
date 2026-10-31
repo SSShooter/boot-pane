@@ -2,6 +2,7 @@
   import type { Task } from "../../bindings/bootpane/internal/config/models";
   import { app } from "../lib/state.svelte";
   import { formatBytes, formatPercent } from "../lib/format";
+  import { t } from "../lib/i18n/index.svelte";
 
   let {
     projectId,
@@ -27,12 +28,17 @@
    */
   const foreignPort = $derived(!!portInfo?.listening && !busy);
 
+  /** 端口占用者的说法，端口提示和重启确认里共用一套措辞。 */
+  function whoOf(process: string | undefined, pid: number): string {
+    return process ? t("task.who", { process, pid }) : t("task.pidOnly", { pid });
+  }
+
   const portHint = $derived.by(() => {
     if (!portInfo?.listening) return "";
-    const who = portInfo.process
-      ? `${portInfo.process}（PID ${portInfo.pid}）`
-      : `PID ${portInfo.pid}`;
-    return `端口 ${portInfo.port} 正被 ${who} 占用，不是 BootPane 启动的。点「重启」会先终止它再重新启动。`;
+    return t("task.portHint", {
+      port: portInfo.port,
+      who: whoOf(portInfo.process, portInfo.pid),
+    });
   });
 
   const restarting = $derived(!!app.restarting[`${projectId}/${task.id}`]);
@@ -58,7 +64,7 @@
    */
   function openPage(): void {
     if (!pageReady) {
-      app.notify(`「${task.label}」还没就绪，等服务起来再打开`);
+      app.notify(t("task.notReady", { label: task.label }));
       return;
     }
     void app.openTaskPage(projectId, task.id);
@@ -74,13 +80,15 @@
     const info = portInfo;
     if (!info?.listening) return;
 
-    const who = info.process ? `${info.process}（PID ${info.pid}）` : `PID ${info.pid}`;
     void app
       .confirm({
-        title: `终止端口 ${info.port} 上的进程并重启？`,
-        body: `将终止 ${who} 及其所有子进程，然后重新启动「${task.label}」。`,
-        detail: "如果那是你手动启动的实例，其中未保存的状态会丢失。",
-        confirmLabel: "终止并重启",
+        title: t("task.restartTitle", { port: info.port }),
+        body: t("task.restartBody", {
+          who: whoOf(info.process, info.pid),
+          label: task.label,
+        }),
+        detail: t("task.restartDetail"),
+        confirmLabel: t("task.restartConfirm"),
         danger: true,
       })
       .then((ok) => {
@@ -91,25 +99,27 @@
   const stateText = $derived.by(() => {
     switch (state) {
       case "starting":
-        return rt?.ready ? "启动中" : "等待就绪";
+        return rt?.ready ? t("task.stateStarting") : t("task.stateWaiting");
       case "running":
-        return "运行中";
+        return t("task.stateRunning");
       case "failed":
-        return rt?.lastError ? `失败：${rt.lastError}` : "启动失败";
+        return rt?.lastError
+          ? t("task.stateFailedWith", { error: rt.lastError })
+          : t("task.stateFailed");
       case "stopped":
         // 端口还在监听时，「已停止」是错的——服务还活着，只是不是这个进程。
-        return foreignPort ? "已退出" : "已停止";
+        return foreignPort ? t("task.stateExited") : t("task.stateStopped");
       default:
         // 同理：从没启动过，但端口上有别人的实例。
-        return foreignPort ? "未启动" : "未运行";
+        return foreignPort ? t("task.stateNotStarted") : t("task.stateIdle");
     }
   });
 
   const waitText = $derived.by(() => {
     const w = task.waitFor;
     if (!w) return "";
-    if (w.type === "port") return `等端口 ${w.port}`;
-    if (w.type === "log") return `等日志 “${w.log}”`;
+    if (w.type === "port") return t("task.waitPort", { port: w.port ?? 0 });
+    if (w.type === "log") return t("task.waitLog", { log: w.log ?? "" });
     return "";
   });
 </script>
@@ -117,15 +127,15 @@
 <div class="task-card">
   <div class="task-top">
     {#if showProject}
-      <span class="proj-badge" title={`来自项目 ${showProject}`}>{showProject}</span>
+      <span class="proj-badge" title={t("task.projectBadge", { name: showProject })}>{showProject}</span>
     {/if}
     <span class="task-label" title={task.label}>{task.label}</span>
     {#if pageUrl}
       <button
         class="page-btn"
         class:is-idle={!pageReady}
-        title={`在浏览器中打开 ${pageUrl}`}
-        aria-label="在浏览器中打开页面"
+        title={t("task.openTitle", { url: pageUrl })}
+        aria-label={t("task.openAria")}
         onclick={openPage}
       >
         <svg
@@ -147,8 +157,8 @@
     <button
       class="star-btn"
       class:is-on={starred}
-      title={starred ? "取消星标" : "加星标（可在「星标任务」里统一管理）"}
-      aria-label={starred ? "取消星标" : "加星标"}
+      title={starred ? t("task.unstar") : t("task.starHint")}
+      aria-label={starred ? t("task.unstar") : t("task.star")}
       aria-pressed={starred}
       onclick={() => app.toggleStar(projectId, task.id)}
     >
@@ -171,13 +181,13 @@
   {#if task.cwd || waitText || task.dependsOn?.length}
     <div class="task-meta">
       {#if task.cwd && task.cwd !== "."}
-        <span>目录 <code>{task.cwd}</code></span>
+        <span>{t("task.dir")} <code>{task.cwd}</code></span>
       {/if}
       {#if waitText}
         <span>{waitText}</span>
       {/if}
       {#if task.dependsOn?.length}
-        <span>依赖 <code>{task.dependsOn.join(", ")}</code></span>
+        <span>{t("task.depends")} <code>{task.dependsOn.join(", ")}</code></span>
       {/if}
     </div>
   {/if}
@@ -189,11 +199,11 @@
     </span>
 
     {#if foreignPort}
-      <span class="port-flag" title={portHint}>外部运行中</span>
+      <span class="port-flag" title={portHint}>{t("task.foreign")}</span>
     {:else if showUsage}
       <span
         class="usage"
-        title="整棵进程树合计（含 pnpm → node → vite 等子进程）"
+        title={t("task.usageTitle")}
       >
         <span class="usage-cpu">CPU {formatPercent(rt?.cpuPercent ?? 0)}</span>
         <span class="usage-mem">{formatBytes(rt?.memoryBytes ?? 0)}</span>
@@ -203,21 +213,23 @@
     <span class="foot-actions">
       <button
         class="btn btn-ghost btn-run"
-        title="查看运行日志"
+        title={t("task.viewLog")}
         onclick={() => app.openLog(projectId, task.id)}
       >
-        日志
+        {t("task.log")}
       </button>
 
       {#if busy}
-        <button class="btn btn-run" onclick={() => app.stopTask(projectId, task.id)}>停止</button>
+        <button class="btn btn-run" onclick={() => app.stopTask(projectId, task.id)}>
+          {t("task.stop")}
+        </button>
       {:else if foreignPort}
         <button class="btn btn-primary btn-run" disabled={restarting} onclick={confirmRestart}>
-          {restarting ? "重启中…" : "重启"}
+          {restarting ? t("task.restarting") : t("task.restart")}
         </button>
       {:else}
         <button class="btn btn-primary btn-run" onclick={() => app.startTask(projectId, task.id)}>
-          启动
+          {t("task.start")}
         </button>
       {/if}
     </span>

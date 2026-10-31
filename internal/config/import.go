@@ -3,8 +3,9 @@ package config
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
+
+	"bootpane/internal/i18n"
 )
 
 // ImportResult 是一次导入的结果。
@@ -29,7 +30,7 @@ func ParseProjectFile(raw string) (ProjectFile, error) {
 		return ProjectFile{}, err
 	}
 	if len(pf.Tasks) == 0 {
-		return ProjectFile{}, errors.New("配置里没有任何 task")
+		return ProjectFile{}, errors.New(i18n.T("import.noTasks"))
 	}
 	return pf, nil
 }
@@ -45,11 +46,11 @@ func ParseEditableConfig(raw string) (ProjectFile, error) {
 func parseProjectFile(raw string) (ProjectFile, error) {
 	body := extractJSONBlock(raw)
 	if body == "" {
-		return ProjectFile{}, errors.New("没找到 JSON 内容，请确认粘贴的是完整的配置")
+		return ProjectFile{}, errors.New(i18n.T("import.noJSON"))
 	}
 	var pf ProjectFile
 	if err := json.Unmarshal([]byte(body), &pf); err != nil {
-		return ProjectFile{}, fmt.Errorf("JSON 格式有误：%w", err)
+		return ProjectFile{}, errors.New(i18n.T("import.badJSON", err))
 	}
 	return pf, nil
 }

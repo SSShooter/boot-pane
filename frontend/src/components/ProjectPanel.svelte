@@ -2,6 +2,7 @@
   import type { ResolvedProject, Task } from "../../bindings/bootpane/internal/config/models";
   import TaskCard from "./TaskCard.svelte";
   import { app } from "../lib/state.svelte";
+  import { t } from "../lib/i18n/index.svelte";
 
   let { project }: { project: ResolvedProject } = $props();
 
@@ -30,10 +31,10 @@
   function confirmRemove(): void {
     void app
       .confirm({
-        title: `从列表移除「${project.name}」？`,
-        body: "这个项目会从 BootPane 的项目列表里消失，随时可以通过目录重新添加。",
-        detail: "磁盘上的仓库文件不会被删除。",
-        confirmLabel: "移除",
+        title: t("project.removeTitle", { name: project.name }),
+        body: t("project.removeBody"),
+        detail: t("project.removeDetail"),
+        confirmLabel: t("project.remove"),
         danger: true,
       })
       .then((ok) => {
@@ -48,20 +49,20 @@
       <div class="title-row">
         <!-- 窄窗口下长项目名会被省略号截断，鼠标悬停能看到全名 -->
         <h1 title={project.name}>{project.name}</h1>
-        <div class="seg" role="group" aria-label="配置来源">
+        <div class="seg" role="group" aria-label={t("project.sourceAria")}>
           <button
             class:is-on={!project.useRepoConfig}
-            title="使用本机注册表里的配置"
+            title={t("project.globalHint")}
             onclick={() => app.setUseRepoConfig(project.id, false)}
           >
-            全局
+            {t("project.global")}
           </button>
           <button
             class:is-on={project.useRepoConfig}
-            title="使用仓库根目录的 .bootpane.json"
+            title={t("project.repoHint")}
             onclick={() => app.setUseRepoConfig(project.id, true)}
           >
-            项目内
+            {t("project.repo")}
           </button>
         </div>
       </div>
@@ -79,17 +80,19 @@
     </div>
     <div class="head-actions">
       <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
-        生成配置
+        {t("project.generate")}
       </button>
-      <button class="btn" onclick={() => app.openEditor(project.id)}>编辑配置</button>
+      <button class="btn" onclick={() => app.openEditor(project.id)}>{t("project.edit")}</button>
       <button
         class="btn"
-        title={app.openWith ? `用 ${app.openWithLabel} 打开 ${project.path}` : "在系统文件管理器里打开"}
+        title={app.openWith
+          ? t("project.openWithTitle", { name: app.openWithLabel, path: project.path })
+          : t("project.openDirTitle")}
         onclick={() => app.openProjectDir(project.id)}
       >
-        {app.openWith ? `用 ${app.openWithLabel} 打开` : "打开目录"}
+        {app.openWith ? t("project.openWith", { name: app.openWithLabel }) : t("project.openDir")}
       </button>
-      <button class="btn btn-danger" onclick={confirmRemove}>移除</button>
+      <button class="btn btn-danger" onclick={confirmRemove}>{t("project.remove")}</button>
     </div>
   </div>
 
@@ -97,7 +100,7 @@
     {#if errors.length > 0}
       <div class="banner err">
         <div>
-          <strong>配置有问题，启动前需要修正</strong>
+          <strong>{t("project.errorsTitle")}</strong>
           <ul class="banner-list">
             {#each errors as issue}
               <li>{issue.taskId ? `[${issue.taskId}] ` : ""}{issue.message}</li>
@@ -110,7 +113,7 @@
     {#if warns.length > 0}
       <div class="banner warn">
         <div>
-          <strong>提示</strong>
+          <strong>{t("project.warnsTitle")}</strong>
           <ul class="banner-list">
             {#each warns as issue}
               <li>{issue.taskId ? `[${issue.taskId}] ` : ""}{issue.message}</li>
@@ -123,9 +126,9 @@
     {#if repoHint && errors.length === 0}
       <div class="banner info">
         <div>
-          这个仓库自带 <code>.bootpane.json</code>，当前用的是全局配置。
+          {t("project.repoBannerA")} <code>.bootpane.json</code>{t("project.repoBannerB")}
           <button class="link-btn" onclick={() => app.setUseRepoConfig(project.id, true)}>
-            切换过去
+            {t("project.repoSwitch")}
           </button>
         </div>
       </div>
@@ -138,24 +141,23 @@
             <rect x="3" y="4" width="18" height="16" rx="2" /><line x1="3" y1="10" x2="21" y2="10" />
           </svg>
         </div>
-        <h2>这个项目还没有启动按钮</h2>
+        <h2>{t("project.noTasksTitle")}</h2>
         <p>
-          让 AI 读一遍仓库结构，自动生成一份配置——复制 prompt 到项目目录下用，
-          再把结果粘回来就行。也可以直接手写 JSON。
+          {t("project.noTasksBody")}
         </p>
         <div class="empty-actions">
           <button class="btn btn-primary" onclick={() => app.openGenerator(project.id)}>
-            生成配置
+            {t("project.generate")}
           </button>
-          <button class="btn" onclick={() => app.openEditor(project.id)}>手写 JSON</button>
-          <button class="btn" onclick={() => app.openConfigDir()}>打开配置目录</button>
+          <button class="btn" onclick={() => app.openEditor(project.id)}>{t("project.writeJson")}</button>
+          <button class="btn" onclick={() => app.openConfigDir()}>{t("settings.openConfigDir")}</button>
         </div>
       </div>
     {:else}
       {#each groups as group (group.name)}
         <section class="group">
           <div class="group-head">
-            <span class="group-name">{group.name || "启动项"}</span>
+            <span class="group-name">{group.name || t("project.defaultGroup")}</span>
             <span class="group-rule"></span>
           </div>
           <div class="task-grid">

@@ -5,6 +5,7 @@
   } from "../../bindings/bootpane/internal/config/models";
   import { api, isPreview } from "../lib/api";
   import { app } from "../lib/state.svelte";
+  import { t } from "../lib/i18n/index.svelte";
 
   let { project, onclose }: { project: ResolvedProject; onclose: () => void } = $props();
 
@@ -26,8 +27,9 @@
    * 这件事不能在界面上含糊过去。
    */
   const target = $derived.by(() => {
-    if (!project.useRepoConfig) return { label: "全局注册表", path: "workspace.json" };
-    return { label: "仓库内配置", path: `${project.path}\\.bootpane.json` };
+    if (!project.useRepoConfig)
+      return { label: t("editor.targetGlobal"), path: "workspace.json" };
+    return { label: t("editor.targetRepo"), path: `${project.path}\\.bootpane.json` };
   });
 
   /**
@@ -37,7 +39,7 @@
    * 这里提前拦住明显写坏的 JSON，省得白跑一趟还能给出更快的反馈。
    */
   const syntaxError = $derived.by(() => {
-    if (!text.trim()) return "内容为空";
+    if (!text.trim()) return t("editor.emptyContent");
     try {
       JSON.parse(text);
       return "";
@@ -83,10 +85,10 @@
     if (saving) return;
     if (dirty) {
       const ok = await app.confirm({
-        title: "放弃未保存的修改？",
-        body: "编辑器里的内容还没有保存，关闭后这些修改会丢失。",
-        confirmLabel: "放弃并关闭",
-        cancelLabel: "继续编辑",
+        title: t("editor.unsavedTitle"),
+        body: t("editor.unsavedBody"),
+        confirmLabel: t("editor.discard"),
+        cancelLabel: t("editor.keepEditing"),
         danger: true,
       });
       if (!ok) return;
@@ -104,7 +106,7 @@
       const res = await api.saveConfigJson(project.id, text);
       issues = res.issues ?? [];
       if (!res.ok) {
-        errorMsg = res.error || "保存失败";
+        errorMsg = res.error || t("editor.saveFailed");
         return;
       }
       await app.load();
@@ -112,8 +114,8 @@
       // 这里只把条数点出来，免得用户以为「没报错就是全对」。
       app.notify(
         issues.length > 0
-          ? `已保存 ${res.imported} 个启动项，另有 ${issues.length} 条提示`
-          : `已保存 ${res.imported} 个启动项`,
+          ? t("editor.savedWithHints", { count: res.imported, hints: issues.length })
+          : t("editor.saved", { count: res.imported }),
       );
       original = text;
       onclose();
@@ -142,12 +144,12 @@
   <div class="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="editor-title">
     <header class="dialog-head">
       <div>
-        <h2 id="editor-title">编辑配置</h2>
+        <h2 id="editor-title">{t("editor.title")}</h2>
         <p class="dialog-sub">
-          保存到{target.label} <code class="path-chip">{target.path}</code>
+          {t("editor.saveTo", { target: target.label })}<code class="path-chip">{target.path}</code>
         </p>
       </div>
-      <button class="icon-btn" aria-label="关闭" onclick={requestClose}>
+      <button class="icon-btn" aria-label={t("editor.close")} onclick={requestClose}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
         </svg>
@@ -156,18 +158,20 @@
 
     <div class="dialog-body editor-body">
       {#if loading}
-        <div class="prompt-loading">正在读取配置…</div>
+        <div class="prompt-loading">{t("editor.loading")}</div>
       {:else if loadError}
         <div class="dialog-error">{loadError}</div>
       {:else}
         <div class="editor-bar">
-          <button class="btn btn-mini" disabled={!!syntaxError} onclick={format}>格式化</button>
+          <button class="btn btn-mini" disabled={!!syntaxError} onclick={format}>
+            {t("editor.format")}
+          </button>
           {#if syntaxError}
-            <span class="syntax-flag err">JSON 语法有误</span>
+            <span class="syntax-flag err">{t("editor.syntaxBad")}</span>
           {:else}
-            <span class="syntax-flag ok">JSON 语法正常</span>
+            <span class="syntax-flag ok">{t("editor.syntaxOk")}</span>
           {/if}
-          <span class="editor-hint">Ctrl+S 保存</span>
+          <span class="editor-hint">{t("editor.hintSave")}</span>
         </div>
 
         <textarea
@@ -180,7 +184,7 @@
         ></textarea>
 
         {#if syntaxError}
-          <div class="dialog-error">JSON 语法有误：{syntaxError}</div>
+          <div class="dialog-error">{t("editor.syntaxDetail", { error: syntaxError })}</div>
         {/if}
         {#if errorMsg}
           <div class="dialog-error">{errorMsg}</div>
@@ -199,17 +203,17 @@
 
     <footer class="dialog-foot">
       {#if isPreview}
-        <span class="dialog-note">浏览器预览模式：改动只存在内存里</span>
+        <span class="dialog-note">{t("editor.previewNote")}</span>
       {:else if project.useRepoConfig}
-        <span class="dialog-note">保存会直接修改仓库里的文件，记得提交</span>
+        <span class="dialog-note">{t("editor.repoNote")}</span>
       {/if}
-      <button class="btn" onclick={requestClose}>取消</button>
+      <button class="btn" onclick={requestClose}>{t("editor.cancel")}</button>
       <button
         class="btn btn-primary"
         disabled={loading || !!loadError || !!syntaxError || saving}
         onclick={save}
       >
-        {saving ? "保存中…" : "保存"}
+        {saving ? t("editor.saving") : t("editor.save")}
       </button>
     </footer>
   </div>

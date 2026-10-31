@@ -164,7 +164,7 @@ const mockOccupied: Record<number, { pid: number; process: string }> = {
 };
 
 /** 预览模式下的本机偏好，只存在内存里，刷新页面就回到默认值。 */
-const mockSettings = { autoOpenLogOnStart: false, openWith: "" };
+const mockSettings = { autoOpenLogOnStart: false, openWith: "", language: "" };
 
 /**
  * 预览模式下的「已安装编辑器」。
@@ -262,6 +262,10 @@ export const mockApi = {
   },
   async setOpenWith(command: string): Promise<void> {
     mockSettings.openWith = command;
+  },
+  async setLanguage(lang: string): Promise<void> {
+    // 预览里没有后端可切，记下来即可：界面语言由 setLocale 自己换。
+    mockSettings.language = lang;
   },
   async detectEditors(): Promise<Editor[]> {
     return mockEditors;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import TaskCard from "./TaskCard.svelte";
   import { app } from "../lib/state.svelte";
+  import { t } from "../lib/i18n/index.svelte";
 
   /**
    * 跨项目聚合视图。
@@ -20,25 +21,25 @@
   <div class="panel-head">
     <div class="panel-title">
       <div class="title-row">
-        <h1>星标任务</h1>
+        <h1>{t("starred.title")}</h1>
         {#if total > 0}
-          <span class="count-chip">{runningCount} / {total} 运行中</span>
+          <span class="count-chip">{t("starred.runningOf", { running: runningCount, total })}</span>
         {/if}
       </div>
       <div class="panel-path">
         {#if total > 0}
-          来自 {projectCount} 个项目的 {total} 个任务
+          {t("starred.summary", { total, projects: projectCount })}
         {:else}
-          还没有星标任务
+          {t("starred.emptyTitle")}
         {/if}
       </div>
     </div>
     <div class="head-actions">
       <button class="btn btn-primary" disabled={total === 0} onclick={() => app.startStarred()}>
-        全部启动
+        {t("starred.startAll")}
       </button>
       <button class="btn" disabled={runningCount === 0} onclick={() => app.stopStarred()}>
-        全部停止
+        {t("starred.stopAll")}
       </button>
     </div>
   </div>
@@ -51,10 +52,9 @@
             <path d="M12 3.4l2.65 5.37 5.93.86-4.29 4.18 1.01 5.9L12 16.92l-5.3 2.79 1.01-5.9L3.42 9.63l5.93-.86z" />
           </svg>
         </div>
-        <h2>还没有星标任务</h2>
+        <h2>{t("starred.emptyTitle")}</h2>
         <p>
-          在任意项目的任务卡片右上角点一下星形图标，任务就会聚合到这里。
-          跨项目的常用按钮放在一起，可以一次性全部启动或全部停止。
+          {t("starred.emptyBody")}
         </p>
       </div>
     {:else}

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"bootpane/internal/i18n"
 )
 
 // newStore 构造一个只用于测试的 Store，不触碰真实用户配置目录。
@@ -90,6 +92,8 @@ func TestResolveUsesRepoWhenEnabled(t *testing.T) {
 }
 
 func TestResolveErrorsWhenRepoConfigMissing(t *testing.T) {
+	useLang(t, i18n.ZH)
+
 	repo := t.TempDir()
 	s := newStore(t)
 	rp := s.Resolve(Project{ID: "p1", Path: repo, UseRepoConfig: true})
@@ -651,12 +655,27 @@ func TestBuildPromptMentionsProjectPath(t *testing.T) {
 }
 
 // 描述和项目名要出现在 prompt 的输出结构里，否则模型不会给，
-// 界面上那行描述永远是空的。
+// 界面上那行描述永远是空的。四种语言各查一遍：只看默认语言的话，
+// 某份翻译漏了整段也发现不了。
 func TestBuildPromptAsksForProjectMeta(t *testing.T) {
-	prompt := BuildPrompt(ResolvedProject{Path: `D:\code\my-shop`})
-	for _, want := range []string{`"project"`, `"description"`, "【项目信息】"} {
-		if !strings.Contains(prompt, want) {
-			t.Errorf("prompt 里应包含 %s，否则模型不会输出项目信息", want)
+	orig := i18n.Current()
+	t.Cleanup(func() { i18n.Set(string(orig)) })
+
+	infoSection := map[i18n.Lang]string{
+		i18n.ZH: "【项目信息】",
+		i18n.EN: "[Project info]",
+		i18n.PT: "[Informações do projeto]",
+		i18n.RU: "[Информация о проекте]",
+	}
+	for _, lang := range i18n.Supported {
+		if !i18n.Set(string(lang)) {
+			t.Fatalf("Set(%q) 失败", lang)
+		}
+		prompt := BuildPrompt(ResolvedProject{Path: `D:\code\my-shop`})
+		for _, want := range []string{`"project"`, `"description"`, infoSection[lang]} {
+			if !strings.Contains(prompt, want) {
+				t.Errorf("%s: prompt 里应包含 %s，否则模型不会输出项目信息", lang, want)
+			}
 		}
 	}
 }
@@ -673,6 +692,8 @@ func TestBuildPromptOmitsUnimplementedFields(t *testing.T) {
 }
 
 func TestValidateMissingDependency(t *testing.T) {
+	useLang(t, i18n.ZH)
+
 	rp := ResolvedProject{
 		Exists: true,
 		Path:   t.TempDir(),
@@ -686,6 +707,8 @@ func TestValidateMissingDependency(t *testing.T) {
 }
 
 func TestValidateCycle(t *testing.T) {
+	useLang(t, i18n.ZH)
+
 	rp := ResolvedProject{
 		Exists: true,
 		Path:   t.TempDir(),
@@ -700,6 +723,8 @@ func TestValidateCycle(t *testing.T) {
 }
 
 func TestValidatePortConflictIsWarning(t *testing.T) {
+	useLang(t, i18n.ZH)
+
 	rp := ResolvedProject{
 		Exists: true,
 		Path:   t.TempDir(),
@@ -718,6 +743,8 @@ func TestValidatePortConflictIsWarning(t *testing.T) {
 }
 
 func TestValidateMissingCommand(t *testing.T) {
+	useLang(t, i18n.ZH)
+
 	rp := ResolvedProject{
 		Exists: true,
 		Path:   t.TempDir(),
@@ -742,4 +769,17 @@ func hasIssue(issues []Issue, level, contains string) bool {
 		}
 	}
 	return false
+}
+
+// useLang 把生成的文案固定成某种语言。
+//
+// 校验和解析的提示文案跟着应用语言变，而这些用例断言的是「报了哪条问题」，
+// 所以显式钉住语言，免得改默认语言就满屏失败。
+func useLang(t *testing.T, lang i18n.Lang) {
+	t.Helper()
+	orig := i18n.Current()
+	if !i18n.Set(string(lang)) {
+		t.Fatalf("Set(%q) 失败", lang)
+	}
+	t.Cleanup(func() { i18n.Set(string(orig)) })
 }

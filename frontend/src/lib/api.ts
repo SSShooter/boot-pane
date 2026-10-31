@@ -49,6 +49,8 @@ export interface Api {
   setAutoOpenLogOnStart(enabled: boolean): Promise<void>;
   /** 设置「打开目录」用的命令，空串表示系统文件管理器。 */
   setOpenWith(command: string): Promise<void>;
+  /** 切换界面语言，空串/不认识的值由后端拒绝。 */
+  setLanguage(lang: string): Promise<void>;
   /** 扫描本机装了哪些编辑器，供设置页直接选。 */
   detectEditors(): Promise<Editor[]>;
   listRunning(): Promise<Runtime[]>;
@@ -95,6 +97,7 @@ const realApi: Api = {
   getSettings: () => ConfigService.GetSettings(),
   setAutoOpenLogOnStart: (enabled) => ConfigService.SetAutoOpenLogOnStart(enabled),
   setOpenWith: (command) => ConfigService.SetOpenWith(command),
+  setLanguage: (lang) => ConfigService.SetLanguage(lang),
   detectEditors: async () => (await ConfigService.DetectEditors()) ?? [],
   listRunning: async () => (await ProcessService.ListRunning()) ?? [],
   startTask: (projectId, taskId) => ProcessService.StartTask(projectId, taskId),

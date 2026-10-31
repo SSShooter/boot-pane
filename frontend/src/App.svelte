@@ -10,6 +10,7 @@
   import ConfirmDialog from "./components/ConfirmDialog.svelte";
   import LogPanel from "./components/LogPanel.svelte";
   import { app } from "./lib/state.svelte";
+  import { t } from "./lib/i18n/index.svelte";
   import { customChrome, macChrome } from "./lib/chrome";
 
   onMount(() => {
@@ -55,11 +56,11 @@
             </svg>
           </div>
           {#if app.projects.length === 0}
-            <h2>还没有添加项目</h2>
-            <p>点击左上角的加号选择项目目录。项目会出现在这里，每个项目可以配置多个启动按钮。</p>
+            <h2>{t("app.emptyNoProjectsTitle")}</h2>
+            <p>{t("app.emptyNoProjectsBody")}</p>
           {:else}
-            <h2>选择左侧的一个项目</h2>
-            <p>从列表里挑一个项目，右侧会显示它所有的启动按钮。</p>
+            <h2>{t("app.emptyPickTitle")}</h2>
+            <p>{t("app.emptyPickBody")}</p>
           {/if}
         </div>
       {/if}
