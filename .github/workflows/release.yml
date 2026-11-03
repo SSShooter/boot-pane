@@ -136,9 +136,10 @@ jobs:
         run: |
           mkdir -p dist
           task linux:package
-          mv bin/*.AppImage             "dist/bootpane-${VERSION}-linux-amd64.AppImage"
-          mv bin/bootpane_*_amd64.deb   "dist/bootpane-${VERSION}-linux-amd64.deb"
-          mv bin/bootpane-*.x86_64.rpm  "dist/bootpane-${VERSION}-linux-amd64.rpm"
+          # wails3 tool package 产物名固定为 {name}.{format}，AppImage 由 generate appimage 命名为 {name}-{arch}.AppImage
+          mv bin/*.AppImage    "dist/bootpane-${VERSION}-linux-amd64.AppImage"
+          mv bin/bootpane.deb  "dist/bootpane-${VERSION}-linux-amd64.deb"
+          mv bin/bootpane.rpm  "dist/bootpane-${VERSION}-linux-amd64.rpm"
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
