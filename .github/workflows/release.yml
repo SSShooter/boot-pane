@@ -73,17 +73,28 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: 安装构建工具 (task / wails3)
-        run: |
-          go install github.com/go-task/task/v3/cmd/task@latest
-          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-
       - name: 安装 Linux 编译依赖 (GTK4 + WebKitGTK 6.0)
         if: matrix.name == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
+      # 注意：wails3 CLI 在 Linux 上本身是 cgo 编译，必须先装上面的开发包
+      - name: 安装 wails3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 安装 NSIS (Windows 打包需要，runner 镜像已不预装)
+        if: matrix.name == 'windows'
+        run: |
+          choco install nsis -y --no-progress
+          echo 'C:\Program Files (x86)\NSIS' >> "$GITHUB_PATH"
 
       - name: 注入版本号到构建资产
         env:
