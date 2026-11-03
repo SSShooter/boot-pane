@@ -3,7 +3,7 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "bootpane.exe"
+name: "bootpane"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
@@ -17,12 +17,12 @@ license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/bootpane.exe"
-    dst: "/usr/local/bin/bootpane.exe"
+  - src: "./bin/bootpane"
+    dst: "/usr/local/bin/bootpane"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/bootpane.exe.png"
-  - src: "./build/linux/bootpane.exe.desktop"
-    dst: "/usr/share/applications/bootpane.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/bootpane.png"
+  - src: "./build/linux/bootpane.desktop"
+    dst: "/usr/share/applications/bootpane.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

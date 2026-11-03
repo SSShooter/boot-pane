@@ -6,7 +6,7 @@
         <key>CFBundleName</key>
             <string>My Product</string>
         <key>CFBundleExecutable</key>
-            <string>bootpane.exe</string>
+            <string>bootpane</string>
         <key>CFBundleIdentifier</key>
             <string>com.timerecord.bootpane</string>
         <key>CFBundleVersion</key>

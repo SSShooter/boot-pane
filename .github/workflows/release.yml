@@ -1,0 +1,178 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号（如 v1.0.0），必须已写入 CHANGELOG.md'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  VERSION: ${{ inputs.version }}
+  WAILS_VERSION: v3.0.0
+
+jobs:
+  validate:
+    name: 校验版本 / Changelog / Tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 校验版本号格式
+        run: |
+          if ! echo "$VERSION" | grep -Eq '^v[0-9]+(\.[0-9]+){1,2}([-.][0-9A-Za-z.-]+)?$'; then
+            echo "::error::版本号格式不合法：'$VERSION'（应为 vX.Y 或 vX.Y.Z）"
+            exit 1
+          fi
+
+      - name: 校验 CHANGELOG.md 中已有该版本条目
+        run: |
+          if ! grep -Eq "^## ${VERSION}([[:space:]-]|$)" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md 中没有 '## ${VERSION}' 条目。请先写好版本变更内容并提交，再触发本工作流。"
+            exit 1
+          fi
+
+      - name: 校验 Tag 不存在
+        run: |
+          if git ls-remote --tags origin "refs/tags/${VERSION}" | grep -q "refs/tags/${VERSION}$"; then
+            echo "::error::Tag ${VERSION} 已存在，请更换版本号。"
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+          - name: macos
+            os: macos-latest
+          - name: linux
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装构建工具 (task / wails3)
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@latest
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: 安装 Linux 编译依赖 (GTK4 + WebKitGTK 6.0)
+        if: matrix.name == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+
+      - name: 注入版本号到构建资产
+        env:
+          APP_VERSION: ${{ env.VERSION }}
+        run: |
+          APP_VERSION="${APP_VERSION#v}"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          # Windows 资源信息
+          perl -pi -e 's{("file_version"\s*:\s*")[^"]*(")}{$1$ENV{APP_VERSION}$2}; s{("ProductVersion"\s*:\s*")[^"]*(")}{$1$ENV{APP_VERSION}$2}' build/windows/info.json
+          # macOS Info.plist
+          perl -pi -e 's{(<key>CFBundle(?:ShortVersionString|Version)</key>\s*<string>)[^<]*(</string>)}{$1$ENV{APP_VERSION}$2}' build/darwin/Info.plist
+          # Linux nfpm
+          perl -pi -e 's{^(version:\s*).*$}{$1"$ENV{APP_VERSION}"}' build/linux/nfpm/nfpm.yaml
+
+      - name: "构建并打包 (Windows: amd64 + arm64, NSIS 安装包 + 便携 exe)"
+        if: matrix.name == 'windows'
+        run: |
+          mkdir -p dist
+          task windows:package ARCH=amd64
+          cp "bin/bootpane-amd64-installer.exe" "dist/bootpane-${VERSION}-windows-amd64-installer.exe"
+          cp "bin/bootpane.exe"                 "dist/bootpane-${VERSION}-windows-amd64-portable.exe"
+          task windows:package ARCH=arm64
+          cp "bin/bootpane-arm64-installer.exe" "dist/bootpane-${VERSION}-windows-arm64-installer.exe"
+          cp "bin/bootpane.exe"                 "dist/bootpane-${VERSION}-windows-arm64-portable.exe"
+
+      - name: "构建并打包 (macOS: universal dmg)"
+        if: matrix.name == 'macos'
+        run: |
+          mkdir -p dist
+          task darwin:package:universal
+          task darwin:create:dmg
+          mv bin/*.dmg "dist/bootpane-${VERSION}-macos-universal.dmg"
+
+      - name: "构建并打包 (Linux: AppImage + deb + rpm)"
+        if: matrix.name == 'linux'
+        env:
+          # linuxdeploy 等 AppImage 工具在 CI 无 FUSE 时需要以解压模式运行
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          mkdir -p dist
+          task linux:package
+          mv bin/*.AppImage             "dist/bootpane-${VERSION}-linux-amd64.AppImage"
+          mv bin/bootpane_*_amd64.deb   "dist/bootpane-${VERSION}-linux-amd64.deb"
+          mv bin/bootpane-*.x86_64.rpm  "dist/bootpane-${VERSION}-linux-amd64.rpm"
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: 打 Tag 并发布 Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 提取 CHANGELOG 中的版本变更内容
+        run: |
+          awk -v ver="${VERSION}" '
+            index($0, "## " ver) == 1 { found=1; next }
+            found && /^## / { exit }
+            found { lines[++n]=$0 }
+            END {
+              s=1; while (s<=n && lines[s]   ~ /^[[:space:]]*$/) s++;
+              e=n; while (e>=s && lines[e] ~ /^[[:space:]]*$/) e--;
+              for (i=s; i<=e; i++) print lines[i]
+            }
+          ' CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "::error::无法从 CHANGELOG.md 提取 ${VERSION} 的变更内容"
+            exit 1
+          fi
+          cat release_notes.md
+
+      - name: 下载全部构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 创建 Tag 与 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: ${{ env.VERSION }}
+          body_path: release_notes.md
+          files: dist/*
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
