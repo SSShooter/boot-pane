@@ -50,6 +50,8 @@
       const path = Array.isArray(picked) ? picked[0] : picked;
       if (path) await app.addProject(path);
     } catch (e) {
+      // 用户取消选择不是错误，静默返回。
+      if (String(e).includes("cancelled by user")) return;
       app.notify(t("sidebar.pickFailed", { error: String(e) }), true);
     }
   }
