@@ -181,7 +181,7 @@ class AppState {
   logTabs = $state<LogTab[]>([]);
   /** 当前选中的标签 key（`projectId/taskId`）。收起抽屉时保留，展开能回到原位。 */
   logKey = $state("");
-  /** 日志抽屉是否展开。有标签但收起时，侧栏的「日志」入口能再打开。 */
+  /** 日志正文是否展开。收起后底部标签条仍常驻，点标签或展开按钮能再打开。 */
   logOpen = $state(false);
   /**
    * 日志面板是否已经弹成独立窗口。
@@ -295,9 +295,10 @@ class AppState {
   /** 是否有确认框正开着（键盘处理要据此让路，否则 Esc 会被抢两次）。 */
   confirmOpen = $derived(this.confirmRequest !== null);
 
-  /** 当前标签对应的任务；抽屉收起时为 null，面板据此整块不渲染。 */
+  /** 当前标签对应的任务；没有标签时为 null，面板据此整块不渲染。
+   *  抽屉收起时仍有值——底部标签条要常驻，正文那部分由 logOpen 决定。 */
   activeLog = $derived.by(() => {
-    if (!this.logOpen || !this.logKey) return null;
+    if (!this.logKey) return null;
     return this.logTabs.find((t) => t.key === this.logKey) ?? null;
   });
 
@@ -815,17 +816,6 @@ class AppState {
     if (this.logTabs.length === 0) return;
     const kept = this.logTabs.some((t) => t.key === this.logKey);
     this.activateLog(kept ? this.logKey : this.logTabs[0].key);
-  }
-
-  /** 抽屉开关，侧栏入口走这里。 */
-  toggleLog(): void {
-    if (this.logDetached) {
-      void this.focusLogWindow();
-      return;
-    }
-
-    if (this.logOpen) this.closeLog();
-    else this.showLog();
   }
 
   /**

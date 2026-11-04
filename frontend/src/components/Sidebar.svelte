@@ -124,25 +124,13 @@
   </div>
 
   <div class="rail-foot">
-    <span>{t("sidebar.projectCount", { count: app.projects.length })}</span>
-    <span class="foot-links">
-      {#if app.logTabs.length > 0}
-        <button
-          class="link-btn"
-          class:is-on={app.logOpen}
-          title={t("sidebar.logToggle")}
-          onclick={() => app.toggleLog()}
-        >
-          {t("sidebar.log", { count: app.logTabs.length })}
-        </button>
-      {/if}
-      <button
-        class="link-icon"
-        class:is-on={app.showSettings}
-        title={t("sidebar.settings")}
-        aria-label={t("sidebar.settings")}
-        onclick={() => app.openSettings()}
-      >
+    <button
+      class="link-icon"
+      class:is-on={app.showSettings}
+      title={t("sidebar.settings")}
+      aria-label={t("sidebar.settings")}
+      onclick={() => app.openSettings()}
+    >
         <svg
           width="14"
           height="14"
@@ -158,7 +146,6 @@
             d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
           />
         </svg>
-      </button>
-    </span>
+    </button>
   </div>
 </aside>

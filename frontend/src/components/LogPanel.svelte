@@ -151,10 +151,11 @@
     });
   });
 
-  // 切标签相当于换了一份输出：直接跳到新标签的底部。
+  // 切标签、或把收起的正文重新展开，都相当于换了一份输出：直接跳到底部。
   // 不能沿用上一个标签的滚动位置——从「翻着历史」切过去会落在新日志中段。
   $effect(() => {
     void app.activeLogKey;
+    void app.logOpen;
     stickToBottom = true;
     void tick().then(() => {
       if (bodyEl) bodyEl.scrollTop = bodyEl.scrollHeight;
@@ -175,15 +176,16 @@
   }
 </script>
 
-{#if target}
+{#if tabs.length > 0}
   <aside
     class="log-drawer"
     class:is-window={detached}
+    class:is-collapsed={!app.logOpen}
     class:is-resizing={resizing}
-    style:height={detached ? undefined : `${drawerHeight}px`}
+    style:height={detached || !app.logOpen ? undefined : `${drawerHeight}px`}
     aria-label={t("log.aria")}
   >
-    {#if !detached}
+    {#if !detached && app.logOpen}
       <!-- 拖拽调高把手：绝对定位叠在抽屉顶边上，不占布局空间。
            双击恢复默认高度。 -->
       <div
@@ -246,7 +248,7 @@
               <path d="M12 3v10" /><path d="m8 9 4 4 4-4" /><path d="M4 19h16" />
             </svg>
           </button>
-        {:else}
+        {:else if app.logOpen}
           <button
             class="log-tab-btn"
             title={t("log.detachTitle")}
@@ -267,10 +269,22 @@
               <path d="M5 6h14" /><path d="m7 11 5 5 5-5" />
             </svg>
           </button>
+        {:else}
+          <button
+            class="log-tab-btn"
+            title={t("log.expandTitle")}
+            aria-label={t("log.expandAria")}
+            onclick={() => app.showLog()}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 18h14" /><path d="m7 13 5-5 5 5" />
+            </svg>
+          </button>
         {/if}
       </div>
     </div>
 
+    {#if app.logOpen && target}
     <header class="log-head">
       <span class="state {runState}">
         <span class="dot"></span>
@@ -308,5 +322,6 @@
         </div>
       {/if}
     </div>
+    {/if}
   </aside>
 {/if}

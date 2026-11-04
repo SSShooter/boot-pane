@@ -394,14 +394,11 @@ input {
 }
 
 .rail-foot {
-  padding: 8px 14px;
-  border-top: 1px solid var(--border);
+  /* 底部只留一个设置入口：不加分割线、不占一整行高度，
+     齿轮靠左下放，留足呼吸感。 */
+  padding: 10px 12px 12px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11.5px;
-  color: var(--text-faint);
 }
 
 .link-btn {
@@ -442,13 +439,6 @@ input {
 .link-icon.is-on {
   background: var(--accent-soft);
   color: var(--accent-ink);
-}
-
-.foot-links {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: none;
 }
 
 /* ---------- 主内容区 ---------- */
@@ -1727,6 +1717,14 @@ input {
   border-top: 1px solid var(--border-strong);
   /* 拖拽把手以顶边为基准绝对定位。 */
   position: relative;
+}
+
+/*
+ * 收起态：只剩常驻的标签条，高度收回一行。行内高度样式在收起时不再输出，
+ * 这里负责把类里那行 320px 也压掉。
+ */
+.log-drawer.is-collapsed {
+  height: auto;
 }
 
 /*
